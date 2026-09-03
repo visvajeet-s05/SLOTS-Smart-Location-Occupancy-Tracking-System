@@ -150,8 +150,9 @@ export function OwnerWebSocketProvider({
       };
 
       ws.onerror = (event) => {
-        console.error("❌ WS error occurred", event);
+        console.warn("⚠️ WS error occurred - WebSocket server may not be running", event);
         isConnectingRef.current = false;
+        // Don't treat connection errors as critical - allow graceful degradation
       };
 
       ws.onclose = (event) => {
@@ -170,13 +171,20 @@ export function OwnerWebSocketProvider({
               connect();
             }, RECONNECT_DELAY * reconnectAttemptsRef.current); // Exponential backoff
           } else {
-            console.error("❌ Max reconnection attempts reached");
+            console.warn("⚠️ Max reconnection attempts reached - WebSocket functionality temporarily unavailable");
+            // Set a longer timeout to retry connection periodically
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectAttemptsRef.current = 0; // Reset attempts
+              console.log("🔄 Resetting reconnection attempts and retrying...");
+              connect();
+            }, 60000); // Retry after 1 minute
           }
         }
       };
     } catch (error) {
-      console.error("❌ Failed to create WebSocket:", error);
+      console.warn("⚠️ Failed to create WebSocket - continuing without real-time updates", error);
       isConnectingRef.current = false;
+      // Allow the app to continue without WebSocket functionality
     }
   }, [lotId, clearTimers]);
 

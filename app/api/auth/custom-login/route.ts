@@ -16,9 +16,16 @@ export async function POST(request: NextRequest) {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        role: true,
+      },
     })
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return NextResponse.json(
         { success: false, message: "Invalid credentials" },
         { status: 401 }
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValid = await bcrypt.compare(password, user.password)
+    const isValid = await bcrypt.compare(password, user.passwordHash)
 
     if (!isValid) {
       return NextResponse.json(
@@ -36,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return user data (excluding password)
-    const { password: _, ...userWithoutPassword } = user
+    const { passwordHash: _, ...userWithoutPassword } = user
 
     return NextResponse.json({
       success: true,

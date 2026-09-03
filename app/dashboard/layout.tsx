@@ -33,10 +33,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen" style={{ background: "var(--bg-void)" }}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <GlobalDashboardPulse />
       {showCustomerNavbar && <CustomerNavbar />}
-      <main className={showCustomerNavbar ? "pt-16" : ""}>
+      <main id="main-content" className={showCustomerNavbar ? "pt-16" : ""}>
         {children}
       </main>
     </div>

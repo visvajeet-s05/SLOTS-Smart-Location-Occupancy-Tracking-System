@@ -17,7 +17,7 @@ import { useSession, signOut } from "next-auth/react"
 import { Search, Bell, Settings, User, LogOut } from "lucide-react"
 import Image from "next/image"
 import { OnlinePulse } from "@/components/ui/OnlinePulse"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 
 export default function OwnerTopbar() {
   const { data: session } = useSession()
@@ -41,7 +41,7 @@ export default function OwnerTopbar() {
       {/* LEFT: Logo */}
       <div className="flex items-center">
         <Link href="/dashboard/owner" className="flex items-center group">
-          <Logo size="small" />
+          <SLOTSLogo size="small" />
         </Link>
       </div>
 
@@ -51,7 +51,7 @@ export default function OwnerTopbar() {
           <Link
             key={item.name}
             href={item.href}
-            className="text-sm font-medium text-slate-300 hover:text-purple-400 transition-colors duration-200"
+            className="text-sm font-medium text-slate-300 hover:text-indigo-400 transition-colors duration-200"
           >
             {item.name}
           </Link>
@@ -66,7 +66,7 @@ export default function OwnerTopbar() {
           <Input
             type="text"
             placeholder="Search bookings, lots, customers..."
-            className="pl-10 pr-4 py-2 w-64 bg-slate-800 border-slate-700 text-white placeholder-slate-400 focus:border-purple-500"
+            className="pl-10 pr-4 py-2 w-64 bg-slate-800 border-slate-700 text-white placeholder-slate-400 focus:border-indigo-500"
           />
         </div>
 
@@ -76,7 +76,7 @@ export default function OwnerTopbar() {
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5 text-slate-300" />
               {notifications.length > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-purple-600 text-white text-xs">
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-indigo-600 text-white text-xs">
                   {notifications.length}
                 </Badge>
               )}
@@ -108,7 +108,7 @@ export default function OwnerTopbar() {
             <Button variant="ghost" className="flex items-center space-x-2 px-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="" alt={session?.user?.email || ""} />
-                <AvatarFallback className="bg-purple-600 text-white">
+                <AvatarFallback className="bg-indigo-600 text-white">
                   {(session?.user?.email || "U")[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>

@@ -1,0 +1,34 @@
+[Unit]
+Description=SLOTS Edge Vision Inference Engine
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/slots
+Environment="PATH=/home/pi/.local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /home/pi/slots/vision_engine/pipeline_runner.py \
+  --site-id CHENNAI-PILOT-01 \
+  --camera rtsp://admin:password@192.168.1.100:554/stream1 \
+  --bay-id BAY-A-101 \
+  --mqtt-broker central.slotify.in \
+  --mqtt-port 1883 \
+  --fps 25
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=slots-vision
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/pi/slots
+
+[Install]
+WantedBy=multi-user.target

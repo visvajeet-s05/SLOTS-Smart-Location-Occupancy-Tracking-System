@@ -22,7 +22,7 @@ import LoginModal from "@/components/auth/LoginModal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isSessionValid } from "@/lib/checkSession"
 import { Role } from "@/lib/auth/roles"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 
 export default function Navbar() {
   const pathname = usePathname()
@@ -85,12 +85,12 @@ export default function Navbar() {
         animate={{ y: 0 }}
         transition={{ duration: 0.3 }}
         className="fixed top-0 left-0 right-0 z-50 
-bg-slate-950/30 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-purple-900/10"
+bg-slate-950/30 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-indigo-900/10"
       >
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center group">
-            <Logo size="small" className="hover:scale-105 transition-transform duration-300" />
+            <SLOTSLogo size="small" className="hover:scale-105 transition-transform duration-300" />
           </Link>
 
           {/* Desktop links */}
@@ -104,7 +104,7 @@ bg-slate-950/30 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-purp
                       key={link.name}
                       href={link.href}
                       className={`px-3 py-2 text-sm rounded-md ${pathname === link.href
-                        ? "text-purple-400"
+                        ? "text-indigo-400"
                         : "text-gray-300 hover:text-white hover:bg-gray-800"
                         }`}
                     >
@@ -130,7 +130,7 @@ bg-slate-950/30 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-purp
                   key={link.name}
                   href={link.href}
                   className={`px-3 py-2 text-sm rounded-md ${pathname === link.href
-                    ? "text-purple-400"
+                    ? "text-indigo-400"
                     : "text-gray-300 hover:text-white hover:bg-gray-800"
                     }`}
                 >
@@ -216,7 +216,7 @@ bg-slate-950/30 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-purp
                   Login
                 </Button>
                 <Button
-                  className="bg-gradient-to-r from-purple-600 to-indigo-600"
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-600"
                   onClick={() => setShowLoginModal(true)}
                 >
                   Get Started

@@ -2,19 +2,19 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-options"
 
 export async function GET() {
     try {
         const session = await getServerSession(authOptions)
 
-        if (!session || session.user?.role !== "ADMIN") {
+        if (!session || session.user?.role !== "SUPER_ADMIN") {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
         const [
             totalUsers,
-            totalOwners,
+            totalOperators,
             totalCustomers, // Keep user.count separated
             totalBookings,
             totalRevenueAggregate,
@@ -25,15 +25,15 @@ export async function GET() {
             recentBookings
         ] = await Promise.all([
             prisma.user.count(),
-            prisma.user.count({ where: { role: "OWNER" } }),
-            prisma.user.count({ where: { role: "CUSTOMER" } }),
+            prisma.user.count({ where: { role: "OWNER" as any } }),
+            prisma.user.count({ where: { role: "CUSTOMER" as any } }),
             prisma.booking.count(),
             prisma.payment.aggregate({
                 _sum: {
                     amount: true,
                 },
                 where: {
-                    status: { in: ["PAID", "CONFIRMED"] },
+                    status: "COMPLETED",
                 },
             }),
             prisma.user.findMany({
@@ -67,7 +67,7 @@ export async function GET() {
         return NextResponse.json({
             metrics: {
                 totalUsers,
-                totalOwners,
+                totalOperators,
                 totalCustomers,
                 totalBookings,
                 totalRevenue,

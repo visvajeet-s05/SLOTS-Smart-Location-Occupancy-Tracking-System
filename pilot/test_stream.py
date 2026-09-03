@@ -2,11 +2,11 @@ import cv2
 
 # Test different RTSP stream formats for IP Webcam
 stream_urls = [
-    "rtsp://10.12.95.11:8080/h264_pcm.sdp",
-    "rtsp://10.12.95.11:8080/video",
-    "rtsp://10.12.95.11:8080/h264",
-    "rtsp://10.12.95.11:8080/live",
-    "http://10.12.95.11:8080/video"
+    "rtsp://100.125.245.26:8080/h264_pcm.sdp",
+    "rtsp://100.125.245.26:8080/video",
+    "rtsp://100.125.245.26:8080/h264",
+    "rtsp://100.125.245.26:8080/live",
+    "http://100.125.245.26:8080/video"
 ]
 
 print("Testing IP Webcam stream connections...")

@@ -30,9 +30,9 @@ export default function RevenueChart({
   const formatCurrency = (value: number) => `₹${value.toLocaleString()}`;
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+    <div className="w-full">
       <h3 className="text-lg font-semibold mb-4">Revenue Breakdown</h3>
-      <div className="h-64">
+      <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

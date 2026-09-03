@@ -39,11 +39,11 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   // Show a clean loading state while session is being verified
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-[#030303] flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-cyan-500/20 border-b-cyan-500 rounded-full animate-spin-slow" />
+            <div className="w-8 h-8 border-4 border-indigo-500/20 border-b-indigo-500 rounded-full animate-spin-slow" />
           </div>
         </div>
       </div>
@@ -58,10 +58,10 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   // If we don't have a lotId yet but are authenticated as owner, show loader
   if (!lotId) {
     return (
-      <div className="min-h-screen bg-[#030303] flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto" />
-          <p className="text-gray-400 font-medium">Verifying parking lot access...</p>
+          <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto" />
+          <p className="text-neutral-400 font-medium">Verifying parking lot access...</p>
         </div>
       </div>
     )
@@ -69,9 +69,9 @@ function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <OwnerWebSocketProvider lotId={lotId}>
-      <div className="min-h-screen bg-[#030303]">
+      <div className="min-h-screen bg-neutral-950">
         <OwnerNavbar />
-        <main className="pt-16">
+        <main className="pt-20">
           {children}
         </main>
       </div>

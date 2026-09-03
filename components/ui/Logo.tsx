@@ -11,10 +11,10 @@ export default function Logo({ className = "", size = "default" }: { className?:
         <div className={`flex items-center justify-center bg-transparent ${className}`}>
             <Image
                 src="/Logo-transparent.svg"
-                alt="Slotify Logo"
+                alt="SLOTS Logo"
                 width={dimensions.width}
                 height={dimensions.height}
-                className="object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.4)] filter brightness-110 active:scale-95 transition-all duration-300 pointer-events-none"
+                className="object-contain drop-shadow-[0_0_15px_rgba(108,108,244,0.4)] filter brightness-110 active:scale-95 transition-all duration-300 pointer-events-none"
                 priority
             />
         </div>

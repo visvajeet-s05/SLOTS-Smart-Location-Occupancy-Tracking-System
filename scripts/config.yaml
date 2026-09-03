@@ -1,0 +1,50 @@
+# SLOTS YOLOv8 Benchmark Configuration
+
+# Dataset paths
+RAW_FRAMES_DIR: "data/raw_frames"
+PROCESSED_DIR: "data/processed"
+DATASET_DIR: "data/yolo_dataset"
+RESULTS_DIR: "results/benchmarks"
+THESIS_DIR: "results/thesis"
+
+# Preprocessing settings
+YOLO_MODEL: "yolov8x.pt"
+USE_SAM: false
+CLAHE_CLIP_LIMIT: 2.0
+CLAHE_TILE_SIZE: 8
+
+# Dataset split settings
+TRAIN_RATIO: 0.70
+VAL_RATIO: 0.15
+TEST_RATIO: 0.15
+RANDOM_SEED: 42
+
+# Training settings
+EPOCHS: 100
+IMAGE_SIZE: 640
+BATCH_SIZE: 16
+DEVICE: "0"
+USE_AMP: true
+
+# Model variants to benchmark
+MODEL_VARIANTS:
+  - yolov8n
+  - yolov8s
+  - yolov8m
+
+# Vehicle classes
+CLASS_NAMES:
+  0: "car"
+  1: "two_wheeler"
+  2: "auto_rickshaw"
+  3: "LCV"
+
+# Environmental conditions
+ENVIRONMENTAL_CONDITIONS:
+  - "daylight_clear"
+  - "night_low_light"
+  - "monsoon_glare"
+
+# Quality filtering
+AMBIGUOUS_CONFIDENCE_MIN: 0.15
+AMBIGUOUS_CONFIDENCE_MAX: 0.40

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-options"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -23,11 +23,18 @@ export async function GET() {
         select: {
           id: true,
           name: true,
+          address: true,
           status: true,
+          totalSlots: true,
         }
       }
     },
   })
 
-  return Response.json(owner)
+  const payload = owner ? {
+    ...owner,
+    address: owner.address || owner.parkinglot?.[0]?.address || null,
+  } : null
+
+  return Response.json(payload)
 }

@@ -29,7 +29,7 @@ export default function SessionTimeoutGuard() {
     
     // Only set timer for logged-in users who ARE NOT admins or owners 
     // (User requested this specifically for "users", while owners/admins have refresh logic)
-    if (status === "authenticated" && session?.user?.role === "CUSTOMER") {
+    if (status === "authenticated" && (session?.user?.role as any) === "CUSTOMER") {
       idleTimerRef.current = setTimeout(() => {
         setIsIdle(true)
         setShowDialog(true)

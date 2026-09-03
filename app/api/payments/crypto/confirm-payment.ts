@@ -32,7 +32,7 @@ export async function confirmPayment(request: NextRequest) {
       await prisma.payment.update({
         where: { id: paymentId },
         data: {
-          status: 'CONFIRMED',
+          status: 'COMPLETED',
           txHash,
           confirmedAt: new Date(),
           updatedAt: new Date(),

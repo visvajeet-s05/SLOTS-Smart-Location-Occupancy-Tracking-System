@@ -2,64 +2,64 @@
 // This ensures consistency across middleware, layouts, and pages
 
 export const OWNER_PARKING_MAPPING: Record<string, string> = {
-    "owner@gmail.com": "CHENNAI_CENTRAL",
-    "owner1@gmail.com": "ANNA_NAGAR",
-    "owner2@gmail.com": "T_NAGAR",
-    "owner3@gmail.com": "VELACHERY",
-    "owner4@gmail.com": "OMR",
-    "owner5@gmail.com": "ADYAR",
-    "owner6@gmail.com": "GUINDY",
-    "owner7@gmail.com": "PORUR"
+    "spencerplaza@slots.dev": "SPENCER_PLAZA",
+    "phoenixmarketcity@slots.dev": "PHOENIX_MARKETCITY",
+    "marinabeach@slots.dev": "MARINA_BEACH",
+    "chennaicentral@slots.dev": "CHENNAI_CENTRAL",
+    "expressavenue@slots.dev": "EXPRESS_AVENUE",
+    "citicentermall@slots.dev": "CITI_CENTER",
+    "annanagartower@slots.dev": "ANNA_NAGAR",
+    "tnagarcentral@slots.dev": "T_NAGAR"
 };
 
 export const PARKING_LOT_DETAILS: Record<string, { name: string; totalSlots: number; location?: string; price?: number }> = {
-    "CHENNAI_CENTRAL": {
-        name: "Chennai Central Premium Parking",
-        totalSlots: 120,
-        location: "Park Town, Chennai",
-        price: 80
-    },
-    "ANNA_NAGAR": {
-        name: "Anna Nagar Metro Parking",
-        totalSlots: 80,
-        location: "Anna Nagar, Chennai",
-        price: 60
-    },
-    "T_NAGAR": {
-        name: "T Nagar Shopping District",
+    "SPENCER_PLAZA": {
+        name: "Spencer Plaza Parking",
         totalSlots: 90,
-        location: "T. Nagar, Chennai",
-        price: 100
+        location: "Anna Salai, Chennai",
+        price: 35
     },
-    "VELACHERY": {
-        name: "Velachery IT Corridor",
+    "PHOENIX_MARKETCITY": {
+        name: "Phoenix Marketcity Parking",
+        totalSlots: 250,
+        location: "Velachery Main Road, Chennai",
+        price: 55
+    },
+    "MARINA_BEACH": {
+        name: "Marina Beach Parking",
         totalSlots: 100,
-        location: "Velachery, Chennai",
-        price: 50
+        location: "Kamarajar Salai, Chennai",
+        price: 25
     },
-    "OMR": {
-        name: "OMR Tech Park Parking",
+    "CHENNAI_CENTRAL": {
+        name: "Chennai Central Railway Station",
+        totalSlots: 300,
+        location: "Poonamallee High Road, Chennai",
+        price: 30
+    },
+    "EXPRESS_AVENUE": {
+        name: "Express Avenue Mall Parking",
         totalSlots: 150,
-        location: "Old Mahabalipuram Rd, Chennai",
+        location: "Whites Road, Chennai",
         price: 45
     },
-    "ADYAR": {
-        name: "Adyar Beachside Parking",
-        totalSlots: 50,
-        location: "Adyar, Chennai",
-        price: 70
+    "CITI_CENTER": {
+        name: "Chennai Citi Center Mall",
+        totalSlots: 200,
+        location: "Rajiv Gandhi Salai, Chennai",
+        price: 50
     },
-    "GUINDY": {
-        name: "Guindy Industrial Parking",
-        totalSlots: 70,
-        location: "Guindy, Chennai",
-        price: 40
-    },
-    "PORUR": {
-        name: "Porur Residential Parking",
-        totalSlots: 60,
-        location: "Porur, Chennai",
+    "ANNA_NAGAR": {
+        name: "Anna Nagar Tower Parking",
+        totalSlots: 80,
+        location: "Anna Nagar Main Road, Chennai",
         price: 35
+    },
+    "T_NAGAR": {
+        name: "T Nagar Central Parking",
+        totalSlots: 120,
+        location: "Usman Road, T Nagar, Chennai",
+        price: 40
     }
 };
 

@@ -37,18 +37,18 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   const { id, amount, currency, metadata } = paymentIntent;
 
   await prisma.payment.upsert({
-    where: { stripeId: id },
+    where: { stripePaymentIntentId: id },
     update: {
-      status: 'PAID',
+      status: 'COMPLETED',
       updatedAt: new Date(),
     },
     create: {
       id: crypto.randomUUID(),
-      stripeId: id,
+      stripePaymentIntentId: id,
       amount,
       currency,
       bookingId: metadata.bookingId,
-      status: 'PAID',
+      status: 'COMPLETED',
       region: metadata.region || 'us',
       updatedAt: new Date(),
     },
@@ -61,14 +61,14 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
   const { id, metadata } = paymentIntent;
 
   await prisma.payment.upsert({
-    where: { stripeId: id },
+    where: { stripePaymentIntentId: id },
     update: {
       status: 'FAILED',
       updatedAt: new Date(),
     },
     create: {
       id: crypto.randomUUID(),
-      stripeId: id,
+      stripePaymentIntentId: id,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
       bookingId: metadata.bookingId,

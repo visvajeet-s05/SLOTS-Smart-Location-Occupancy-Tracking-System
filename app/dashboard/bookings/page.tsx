@@ -2,22 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import {
-  Calendar, MapPin, Clock, Car, DollarSign, Eye, Trash2,
-  Download, Share2, AlertCircle, X, ChevronRight, Filter, Search, QrCode
+  Calendar, MapPin, Clock, Car, DollarSign, Trash2,
+  Download, Share2, AlertCircle, ChevronRight, Filter, QrCode, Phone, Eye
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose
 } from "@/components/ui/dialog"
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import QRCode from "qrcode"
+import Footer from "@/components/layout/footer"
+import { StatCard, SemanticBadge, EmptyState, Skeleton } from "@/components/design-system"
 
 // We'll simulate fetching for now as the action created might need more setup (e.g. authOptions import fix if not standard)
 // better to use client-side fetching to an API route usually, but let's try to mock the successful "realtime" look first with robust data
@@ -60,13 +58,35 @@ export default function BookingsPage() {
   const router = useRouter()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<string>("ALL")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [displayCount, setDisplayCount] = useState(20)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [bookingToDelete, setBookingToDelete] = useState<string | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+
+
+  // Fetch Real Bookings from Database
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        const res = await fetch("/api/bookings")
+        if (res.ok) {
+          const data = await res.json()
+          setBookings(data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch bookings:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchBookings()
+  }, [])
+
+  // Filter Logic - No search, just return all bookings
+  const filteredBookings = bookings
+  const hasActiveFilters = false // No filters implemented yet
 
   // Generate QR Code dynamically
   useEffect(() => {
@@ -88,34 +108,10 @@ export default function BookingsPage() {
     }
   }, [selectedBooking])
 
-  // Fetch Real Bookings from Database
-  useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const res = await fetch("/api/bookings")
-        if (res.ok) {
-          const data = await res.json()
-          setBookings(data)
-        }
-      } catch (error) {
-        console.error("Failed to fetch bookings:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchBookings()
-  }, [])
-
-  // Filter Logic
-  const filteredBookings = bookings.filter(booking => {
-    const matchesStatus = statusFilter === "ALL" || booking.status === statusFilter
-    const matchesSearch =
-      booking.parkingLocation.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.bookingId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      booking.vehicleModel.toLowerCase().includes(searchQuery.toLowerCase())
-
-    return matchesStatus && matchesSearch
-  })
+  const handleViewDetails = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setShowDetailsModal(true)
+  }
 
   // Stats Calculation
   const stats = {
@@ -124,18 +120,76 @@ export default function BookingsPage() {
     active: bookings.filter(b => b.status === "ACTIVE").length,
     completed: bookings.filter(b => b.status === "COMPLETED").length,
     cancelled: bookings.filter(b => b.status === "CANCELLED").length,
+    totalSpent: bookings.reduce((sum, b) => sum + b.amount, 0),
   }
 
   // Helper for Status Styles
   const getStatusStyles = (status: string) => {
     switch (status) {
-      case "UPCOMING": return "bg-blue-500/10 text-blue-400 border-blue-500/20"
-      case "ACTIVE": return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 animate-pulse"
-      case "COMPLETED": return "bg-slate-500/10 text-slate-400 border-slate-500/20"
-      case "CANCELLED": return "bg-red-500/10 text-red-400 border-red-500/20"
-      default: return "bg-slate-500/10 text-slate-400"
+      case "UPCOMING": return { bg: "var(--accent-dim)", color: "var(--status-upcoming)", border: "var(--border-glow)" }
+      case "ACTIVE": return { bg: "rgba(52, 211, 153, 0.1)", color: "var(--status-available)", border: "rgba(52, 211, 153, 0.3)" }
+      case "COMPLETED": return { bg: "rgba(199, 199, 218, 0.1)", color: "var(--status-completed)", border: "rgba(199, 199, 218, 0.2)" }
+      case "CANCELLED": return { bg: "rgba(229, 72, 77, 0.1)", color: "var(--status-cancelled)", border: "rgba(229, 72, 77, 0.3)" }
+      default: return { bg: "rgba(199, 199, 218, 0.1)", color: "var(--status-completed)", border: "rgba(199, 199, 218, 0.2)" }
     }
   }
+
+  // Date grouping helper
+  const groupBookingsByDate = (bookings: Booking[]) => {
+    const groups: { [key: string]: Booking[] } = {}
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const thisWeekStart = new Date(today)
+    thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay())
+
+    bookings.forEach(booking => {
+      const bookingDate = new Date(booking.bookingDate)
+      bookingDate.setHours(0, 0, 0, 0)
+      let groupKey = ""
+
+      if (bookingDate.getTime() === today.getTime()) {
+        groupKey = "Today"
+      } else if (bookingDate.getTime() === yesterday.getTime()) {
+        groupKey = "Yesterday"
+      } else if (bookingDate >= thisWeekStart) {
+        groupKey = "This Week"
+      } else {
+        groupKey = bookingDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = []
+      }
+      groups[groupKey].push(booking)
+    })
+
+    // Sort groups: Today > Yesterday > This Week > months (descending)
+    const sortedGroups: { label: string; bookings: Booking[] }[] = []
+    const groupOrder = ["Today", "Yesterday", "This Week"]
+    
+    groupOrder.forEach(key => {
+      if (groups[key]) {
+        sortedGroups.push({ label: key, bookings: groups[key] })
+        delete groups[key]
+      }
+    })
+
+    // Add remaining month groups sorted by date descending
+    Object.keys(groups).sort((a, b) => {
+      const dateA = new Date(a)
+      const dateB = new Date(b)
+      return dateB.getTime() - dateA.getTime()
+    }).forEach(key => {
+      sortedGroups.push({ label: key, bookings: groups[key] })
+    })
+
+    return sortedGroups
+  }
+
+  const groupedBookings = groupBookingsByDate(filteredBookings.slice(0, displayCount))
+  const hasMore = filteredBookings.length > displayCount
 
   const handleDeleteClick = (id: string) => {
     setBookingToDelete(id)
@@ -151,15 +205,15 @@ export default function BookingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
+    <div className="min-h-screen font-sans" style={{ background: "var(--bg-void)", color: "var(--text-secondary)" }}>
       {/* Background Ambient Effects */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-900/10 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl" style={{ background: "var(--accent-glow)" }} />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 rounded-full blur-3xl" style={{ background: "var(--accent-glow)" }} />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-[0.03]" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24">
+      <div className="relative z-10 px-4 max-w-[1440px] mx-auto pt-8 pb-24">
 
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
@@ -168,10 +222,10 @@ export default function BookingsPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-2">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
               My Bookings
             </h1>
-            <p className="text-slate-400 text-lg max-w-2xl">
+            <p className="text-lg max-w-2xl" style={{ color: "var(--text-secondary)" }}>
               Manage your parking history, track active sessions, and plan ahead.
             </p>
           </motion.div>
@@ -183,72 +237,67 @@ export default function BookingsPage() {
           >
             <Button
               onClick={() => router.push("/dashboard")}
-              className="bg-white text-slate-900 hover:bg-slate-200 font-bold shadow-lg shadow-white/5 transition-all hover:scale-105"
+              className="font-bold shadow-lg transition-all hover:scale-105"
+              style={{ background: "var(--accent)", color: "var(--text-primary)" }}
             >
               + New Booking
             </Button>
           </motion.div>
         </div>
 
-        {/* Statistics Grid */}
+        {/* Statistics Grid - Using Design System */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10"
+          className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10 px-4"
         >
-          {[
-            { label: "Total Bookings", value: stats.total, color: "text-white", bg: "bg-slate-800/50" },
-            { label: "Active Now", value: stats.active, color: "text-emerald-400", bg: "bg-emerald-900/10 border-emerald-500/20" },
-            { label: "Upcoming", value: stats.upcoming, color: "text-blue-400", bg: "bg-blue-900/10 border-blue-500/20" },
-            { label: "Cancelled", value: stats.cancelled, color: "text-red-400", bg: "bg-red-900/10 border-red-500/20" },
-          ].map((stat, i) => (
-            <div key={i} className={cn("p-5 rounded-2xl border border-white/5 backdrop-blur-sm transition-transform hover:-translate-y-1", stat.bg)}>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">{stat.label}</p>
-              <p className={cn("text-3xl font-black", stat.color)}>{stat.value}</p>
-            </div>
-          ))}
+          <StatCard
+            label="Total Bookings"
+            value={stats.total}
+            color="var(--text-primary)"
+            glow="var(--accent-glow)"
+            delay={0}
+            ariaLabel="Total bookings"
+          />
+          <StatCard
+            label="Active Now"
+            value={stats.active}
+            color="var(--status-available)"
+            glow="rgba(34, 197, 94, 0.2)"
+            delay={0.1}
+            ariaLabel="Active bookings"
+          />
+          <StatCard
+            label="Upcoming"
+            value={stats.upcoming}
+            color="var(--status-upcoming)"
+            glow="var(--accent-glow)"
+            delay={0.2}
+            ariaLabel="Upcoming bookings"
+          />
+          <StatCard
+            label="Cancelled"
+            value={stats.cancelled}
+            color="var(--status-cancelled)"
+            glow="rgba(239, 68, 68, 0.2)"
+            delay={0.3}
+            ariaLabel="Cancelled bookings"
+          />
+          <StatCard
+            label="Total Spent"
+            value={`₹${stats.totalSpent}`}
+            icon={DollarSign}
+            color="var(--status-available)"
+            glow="rgba(34, 197, 94, 0.2)"
+            delay={0.4}
+            ariaLabel="Total amount spent"
+          />
         </motion.div>
 
-        {/* Controls Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-col md:flex-row gap-4 mb-6 bg-slate-900/40 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl"
-        >
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <Input
-              placeholder="Search by location, ID, or vehicle..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent border-none text-white pl-10 h-10 focus-visible:ring-0 placeholder:text-slate-600"
-            />
-          </div>
-
-          {/* Filter Tabs */}
-          <div className="flex bg-slate-950/50 rounded-xl p-1 gap-1">
-            {["ALL", "UPCOMING", "ACTIVE", "COMPLETED", "CANCELLED"].map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
-                  statusFilter === status
-                    ? "bg-slate-800 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-                )}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-        </motion.div>
 
         {/* Content List */}
-        <AnimatePresence mode="wait">
+        <div>
           {isLoading ? (
             <motion.div
               initial={{ opacity: 0 }}
@@ -257,268 +306,297 @@ export default function BookingsPage() {
               className="space-y-4"
             >
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-slate-900/50 rounded-2xl animate-pulse border border-white/5" />
+                <div key={i} className="h-24 rounded-2xl animate-pulse border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }} />
               ))}
             </motion.div>
           ) : filteredBookings.length === 0 ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-20 bg-slate-900/20 rounded-3xl border border-white/5 border-dashed"
+              className="flex flex-col items-center justify-center py-20 px-6"
             >
-              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Filter className="w-8 h-8 text-slate-500" />
+              <div className="relative mb-8">
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-24 h-24 rounded-full flex items-center justify-center"
+                  style={{ background: "var(--accent-dim)", border: "1px solid var(--border-glow)" }}
+                >
+                  <Calendar className="w-12 h-12" style={{ color: "var(--accent)" }} />
+                </motion.div>
+                <motion.div
+                  className="absolute inset-0 rounded-full opacity-0"
+                  animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  style={{ background: "var(--accent-glow)" }}
+                />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">No bookings found</h3>
-              <p className="text-slate-400 max-w-sm mx-auto mb-6">
-                Try adjusting your filters or search terms.
+              <h3 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)" }}>No bookings yet</h3>
+              <p className="text-center mb-8 max-w-md" style={{ color: "var(--text-secondary)" }}>
+                You haven't booked a spot yet. Find parking near you to get started with your first reservation.
               </p>
               <Button
-                onClick={() => {
-                  setStatusFilter("ALL")
-                  setSearchQuery("")
-                }}
-                variant="outline"
-                className="bg-transparent border-white/10 text-white hover:bg-white/5"
+                onClick={() => router.push("/dashboard")}
+                className="font-bold shadow-lg transition-all hover:scale-105"
+                style={{ background: "var(--accent)", color: "var(--text-primary)" }}
               >
-                Clear Filters
+                Find Parking
               </Button>
             </motion.div>
           ) : (
-            <div className="space-y-4">
-              {filteredBookings.map((booking, index) => (
-                <motion.div
-                  key={booking.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  className="group relative bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-purple-500/20 backdrop-blur-md rounded-2xl p-5 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/5"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-
-                    {/* Left: Info */}
-                    <div className="flex items-start gap-4">
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
-                        booking.status === "ACTIVE" ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400"
-                      )}>
-                        <Car className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">
-                            {booking.parkingLocation}
-                          </h3>
-                          <Badge variant="outline" className={cn("text-[10px] h-5 px-1.5 border-0", getStatusStyles(booking.status))}>
-                            {booking.status}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
-                          <span className="flex items-center gap-1.5 whitespace-nowrap">
-                            <Calendar className="w-3.5 h-3.5" />
-                            {new Date(booking.bookingDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
-                          <span className="flex items-center gap-1.5 whitespace-nowrap">
-                            <Clock className="w-3.5 h-3.5" />
-                            {booking.bookingTime}
-                          </span>
-                          <div className="flex gap-2">
-                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-white text-xs font-mono">
-                              Slot {booking.slotId}
-                            </span>
-                            {booking.txHash && (
-                              <span className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-xs font-mono border border-indigo-500/20">
-                                Web3 Confirmed
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Middle: Stats for Desktop */}
-                    <div className="hidden md:flex items-center gap-8 px-6 border-l border-r border-white/5">
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase font-bold mb-1">Duration</p>
-                        <p className="text-white font-medium">{booking.duration} hr{booking.duration > 1 && 's'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase font-bold mb-1">Amount</p>
-                        <p className="text-emerald-400 font-bold">₹{booking.amount}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase font-bold mb-1">Vehicle</p>
-                        <p className="text-white font-medium">{booking.vehicleModel}</p>
-                      </div>
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-t-0 border-white/5">
-
-                      {/* Mobile Stats (Only visible on small screens) */}
-                      <div className="md:hidden">
-                        <p className="text-emerald-400 font-bold text-lg">₹{booking.amount}</p>
-                        <p className="text-xs text-slate-500">{booking.vehicleModel}</p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedBooking(booking)
-                            setShowDetailsModal(true)
-                          }}
-                          className="text-slate-400 hover:text-white hover:bg-white/10"
-                        >
-                          Details
-                        </Button>
-
-                        {booking.status === "UPCOMING" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteClick(booking.id)}
-                            className="text-slate-500 hover:text-red-400 hover:bg-red-500/10"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+            <div className="space-y-6 px-4">
+              {groupedBookings.map((group, groupIndex) => (
+                <div key={group.label}>
+                  {/* Sticky Section Header */}
+                  <div className="sticky top-0 z-10 backdrop-blur-md py-3 border-b mb-4 transition-shadow rounded-xl" style={{ background: "rgba(15, 23, 42, 0.8)", borderColor: "var(--border-glass)" }}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                        {group.label}
+                      </h3>
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        {group.bookings.length} booking{group.bookings.length !== 1 ? 's' : ''}
+                      </span>
                     </div>
                   </div>
-                </motion.div>
+
+                  {/* Booking Rows - 3-column grid of ticket-style cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {group.bookings.map((booking, index) => (
+                      <motion.div
+                        key={booking.id}
+                        layout
+                        initial={{ opacity: 0, rotateX: 6, translateZ: -100 }}
+                        animate={{ opacity: 1, rotateX: 0, translateZ: 0 }}
+                        transition={{ duration: 0.4, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                        className="group relative backdrop-blur-md rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg"
+                        style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", border: "1px solid", boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                      >
+                        {/* Ticket Card - Click to view details */}
+                        <div
+                          className="flex cursor-pointer hover:bg-white/5 transition-colors"
+                          onClick={() => handleViewDetails(booking)}
+                        >
+                          {/* Main Section (70%) */}
+                          <div className="flex-1 p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--bg-surface)" }}>
+                                <Car className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                                  {booking.parkingLocation}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                    {new Date(booking.bookingDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                  </span>
+                                  <SemanticBadge status={booking.status === "ACTIVE" ? "active" : booking.status === "UPCOMING" ? "upcoming" : booking.status === "COMPLETED" ? "completed" : "cancelled"} className="text-[10px]">
+                                    {booking.status}
+                                  </SemanticBadge>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dashed Divider */}
+                          <div className="relative w-px flex items-center justify-center" style={{ background: "transparent" }}>
+                            <div className="absolute inset-0 w-px" style={{ borderLeft: "1px dashed var(--border-glass)" }} />
+                            {/* Top notch */}
+                            <div className="absolute top-0 w-3 h-3 rounded-full" style={{ background: "var(--bg-void)", border: "1px solid var(--border-glass)", transform: "translateX(-50%)" }} />
+                            {/* Bottom notch */}
+                            <div className="absolute bottom-0 w-3 h-3 rounded-full" style={{ background: "var(--bg-void)", border: "1px solid var(--border-glass)", transform: "translateX(-50%)" }} />
+                          </div>
+
+                          {/* Stub Section (30%) - Amount only */}
+                          <div className="w-[30%] p-4 flex flex-col items-center justify-center relative">
+                            <p className="text-xs font-bold uppercase mb-1" style={{ color: "var(--text-muted)" }}>Amount</p>
+                            <p className="text-lg font-bold" style={{ color: "var(--status-available)" }}>₹{booking.amount}</p>
+                            {/* Expand/Navigation Indicator */}
+                            <motion.div
+                              animate={{ rotate: 0 }}
+                              className="mt-2"
+                            >
+                              <ChevronRight className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                            </motion.div>
+                          </div>
+                        </div>
+
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
               ))}
+
+              {/* Load More Button */}
+              {hasMore && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center pt-4"
+                >
+                  <Button
+                    variant="outline"
+                    onClick={() => setDisplayCount(prev => prev + 20)}
+                    style={{ borderColor: "var(--border-glass)", color: "var(--text-primary)" }}
+                    className="hover:bg-white/5"
+                  >
+                    Load More Bookings
+                  </Button>
+                </motion.div>
+              )}
             </div>
           )}
-        </AnimatePresence>
+        </div>
       </div>
+
 
       {/* Details Modal - Premium Glass Style */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="bg-slate-900 border border-white/10 text-white max-w-lg p-0 overflow-hidden sm:rounded-3xl shadow-2xl shadow-black/50">
+        <DialogContent className="max-w-2xl p-0 overflow-hidden sm:rounded-3xl shadow-2xl shadow-black/50 max-h-[90vh] overflow-y-auto" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>
           <DialogTitle className="sr-only">Booking Details</DialogTitle>
           <DialogDescription className="sr-only">Details for your selected parking booking.</DialogDescription>
           {selectedBooking && (
             <>
-              <div className="relative h-32 bg-gradient-to-br from-indigo-900/50 to-purple-900/50 flex items-center justify-center overflow-hidden">
+              {/* Header */}
+              <div className="relative h-40 flex items-center justify-center overflow-hidden" style={{ background: "linear-gradient(to bottom right, var(--accent-dim), var(--bg-surface))" }}>
                 <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
                 <div className="text-center z-10">
-                  <h3 className="text-2xl font-bold text-white">{selectedBooking.parkingLocation}</h3>
-                  <p className="text-indigo-200 text-sm">Booking ID: {selectedBooking.bookingId}</p>
+                  <h3 className="text-3xl font-bold text-white">{selectedBooking.parkingLocation}</h3>
+                  <p className="text-sm opacity-90">Booking ID: {selectedBooking.bookingId}</p>
                 </div>
               </div>
 
               <div className="p-6 space-y-6">
+                {/* Status and Amount */}
                 <div className="flex items-center justify-between">
-                  <Badge className={cn("px-2.5 py-1 text-sm", getStatusStyles(selectedBooking.status))}>
+                  <Badge className={cn("px-3 py-1 text-sm")} style={{ background: getStatusStyles(selectedBooking.status).bg, color: getStatusStyles(selectedBooking.status).color, borderColor: getStatusStyles(selectedBooking.status).border }}>
                     {selectedBooking.status}
                   </Badge>
                   <div className="text-right">
-                    <p className="text-xs text-slate-400 uppercase font-bold">Total Amount</p>
-                    <p className="text-2xl font-black text-emerald-400">₹{selectedBooking.amount}</p>
+                    <p className="text-xs uppercase font-bold" style={{ color: "var(--text-muted)" }}>Total Amount</p>
+                    <p className="text-3xl font-black" style={{ color: "var(--status-available)" }}>₹{selectedBooking.amount}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-xl border border-white/5">
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl border" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Date</p>
-                    <div className="flex items-center gap-2 text-slate-200 font-medium">
-                      <Calendar className="w-4 h-4 text-purple-400" />
+                    <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>Date</p>
+                    <div className="flex items-center gap-2 font-medium" style={{ color: "var(--text-primary)" }}>
+                      <Calendar className="w-4 h-4" style={{ color: "var(--accent)" }} />
                       {new Date(selectedBooking.bookingDate).toLocaleDateString()}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Time</p>
-                    <div className="flex items-center gap-2 text-slate-200 font-medium">
-                      <Clock className="w-4 h-4 text-purple-400" />
+                    <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>Time</p>
+                    <div className="flex items-center gap-2 font-medium" style={{ color: "var(--text-primary)" }}>
+                      <Clock className="w-4 h-4" style={{ color: "var(--accent)" }} />
                       {selectedBooking.bookingTime}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Slot</p>
-                    <div className="flex items-center gap-2 text-slate-200 font-medium">
-                      <MapPin className="w-4 h-4 text-purple-400" />
+                    <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>Slot</p>
+                    <div className="flex items-center gap-2 font-medium" style={{ color: "var(--text-primary)" }}>
+                      <MapPin className="w-4 h-4" style={{ color: "var(--accent)" }} />
                       {selectedBooking.slotId}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Vehicle</p>
-                    <div className="flex items-center gap-2 text-slate-200 font-medium">
-                      <Car className="w-4 h-4 text-purple-400" />
-                      {selectedBooking.vehicleModel}
+                    <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>Duration</p>
+                    <p className="font-medium" style={{ color: "var(--text-primary)" }}>{selectedBooking.duration} hour{selectedBooking.duration > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+
+                {/* Vehicle Details */}
+                <div className="p-4 rounded-xl border" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
+                  <p className="text-xs font-bold uppercase mb-3" style={{ color: "var(--text-muted)" }}>Vehicle Information</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>Vehicle Model</p>
+                      <div className="flex items-center gap-2 font-medium" style={{ color: "var(--text-primary)" }}>
+                        <Car className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                        {selectedBooking.vehicleModel}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold mb-1" style={{ color: "var(--text-muted)" }}>License Plate</p>
+                      <p className="font-mono font-medium" style={{ color: "var(--text-primary)" }}>{selectedBooking.licensePlate}</p>
                     </div>
                   </div>
                 </div>
 
+                {/* Web3 Confirmation */}
                 {selectedBooking.txHash && (
-                  <div className="bg-[#141A2A] border border-indigo-500/30 rounded-xl p-4 relative overflow-hidden mt-4">
-                    <div className="absolute top-0 right-0 bg-indigo-600 text-white px-3 py-1 text-[10px] font-bold rounded-bl-lg uppercase tracking-wider flex items-center gap-1">
+                  <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glow)", border: "1px solid" }}>
+                    <div className="absolute top-0 right-0 px-3 py-1 text-[10px] font-bold rounded-bl-lg uppercase tracking-wider flex items-center gap-1" style={{ background: "var(--accent)", color: "var(--text-primary)" }}>
                       Immutable
                     </div>
-                    <p className="text-xs text-indigo-400 font-bold mb-1 flex items-center gap-1">
+                    <p className="text-xs font-bold mb-1 flex items-center gap-1" style={{ color: "var(--accent)" }}>
                       Web3 Digital Receipt
                     </p>
-                    <p className="font-mono text-[10px] text-indigo-300 truncate">
+                    <p className="font-mono text-[10px] truncate" style={{ color: "var(--text-secondary)" }}>
                       TX: {selectedBooking.txHash}
                     </p>
                   </div>
                 )}
 
+                {/* QR Code for Active Bookings */}
                 {selectedBooking.status === "ACTIVE" && qrCodeUrl && (
-                  <div className="bg-emerald-900/10 p-5 rounded-2xl border border-dashed border-emerald-500/30 flex flex-col items-center justify-center text-center mt-2 group relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[40px] pointer-events-none" />
+                  <div className="p-5 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center relative overflow-hidden" style={{ background: "rgba(52, 211, 153, 0.05)", borderColor: "rgba(52, 211, 153, 0.3)" }}>
+                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] pointer-events-none" style={{ background: "rgba(52, 211, 153, 0.1)" }} />
                     
-                    <div className="bg-white p-2.5 rounded-2xl mb-4 shadow-[0_0_40px_rgba(16,185,129,0.15)] ring-4 ring-emerald-500/10 relative z-10">
-                      <img src={qrCodeUrl} alt="Entry QR Code" className="w-28 h-28 object-contain mix-blend-multiply" />
+                    <div className="bg-white p-4 rounded-2xl mb-4 relative z-10" style={{ boxShadow: "0 0 40px rgba(52, 211, 153, 0.15)" }}>
+                      <img src={qrCodeUrl} alt="Entry QR Code" className="w-32 h-32 object-contain mix-blend-multiply" />
                     </div>
                     
-                    <div className="flex items-center gap-2 mb-1.5 z-10">
-                      <QrCode className="w-4 h-4 text-emerald-400" />
-                      <p className="text-emerald-400 font-extrabold tracking-[0.15em] text-sm uppercase">Active Gate Pass</p>
+                    <div className="flex items-center gap-2 mb-2 z-10">
+                      <QrCode className="w-5 h-5" style={{ color: "var(--status-available)" }} />
+                      <p className="font-extrabold tracking-[0.15em] text-sm uppercase" style={{ color: "var(--status-available)" }}>Active Gate Pass</p>
                     </div>
-                    <p className="text-emerald-500/70 text-[10px] uppercase font-bold tracking-widest leading-relaxed max-w-[260px] z-10">
+                    <p className="text-xs uppercase font-bold tracking-widest leading-relaxed max-w-[300px] z-10" style={{ color: "rgba(52, 211, 153, 0.7)" }}>
                       Present this code at the boom barrier scanner for automated entry
                     </p>
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  <Button className="flex-1 bg-white text-slate-900 hover:bg-slate-200 font-bold">
-                    <Download className="w-4 h-4 mr-2" /> Receipt
-                  </Button>
-                  <Button variant="outline" className="flex-1 border-white/10 text-white hover:bg-white/5">
-                    <Share2 className="w-4 h-4 mr-2" /> Share
-                  </Button>
-                </div>
-
+                {/* Service Provider */}
                 {selectedBooking.ownerBusinessName && (
-                  <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 mt-4">
-                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-3">Service Provider</p>
+                  <div className="p-4 rounded-xl border" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
+                    <p className="text-[10px] uppercase font-black tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>Service Provider</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-500/10 rounded-full flex items-center justify-center border border-purple-500/20">
-                          <MapPin className="w-5 h-5 text-purple-400" />
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center border" style={{ background: "var(--accent-dim)", borderColor: "var(--border-glow)" }}>
+                          <MapPin className="w-5 h-5" style={{ color: "var(--accent)" }} />
                         </div>
                         <div>
-                          <p className="text-white font-bold text-sm tracking-wide">{selectedBooking.ownerBusinessName}</p>
-                          <p className="text-slate-400 text-xs mt-0.5">{selectedBooking.parkingAddress || "Pre-booked Slot"}</p>
+                          <p className="font-bold text-sm tracking-wide" style={{ color: "var(--text-primary)" }}>{selectedBooking.ownerBusinessName}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{selectedBooking.parkingAddress || "Pre-booked Slot"}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950 flex flex-col items-end h-auto py-1">
-                        <span className="text-xs font-bold leading-tight">Support</span>
+                      <Button variant="ghost" size="sm" className="flex flex-col items-end h-auto py-1" style={{ color: "var(--status-available)" }}>
+                        <span className="text-xs font-bold leading-tight flex items-center gap-1">
+                          <Phone className="w-3 h-3" /> Support
+                        </span>
                         <span className="text-[10px] font-mono leading-tight mt-0.5">{selectedBooking.ownerPhone}</span>
                       </Button>
                     </div>
                   </div>
                 )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button className="flex-1 font-bold" style={{ background: "var(--accent)", color: "var(--text-primary)" }}>
+                    <Download className="w-4 h-4 mr-2" /> Receipt
+                  </Button>
+                  <Button variant="outline" className="flex-1 hover:bg-white/5" style={{ borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>
+                    <Share2 className="w-4 h-4 mr-2" /> Share
+                  </Button>
+                </div>
               </div>
 
-              <div className="p-4 border-t border-white/5 bg-slate-950/30 flex justify-center">
+              <div className="p-4 flex justify-center" style={{ borderTop: "1px solid var(--border-glass)", background: "var(--bg-surface)" }}>
                 <DialogClose asChild>
-                  <Button variant="ghost" className="text-slate-400 hover:text-white">Close Details</Button>
+                  <Button variant="ghost" style={{ color: "var(--text-secondary)" }}>Close Details</Button>
                 </DialogClose>
               </div>
             </>
@@ -528,13 +606,13 @@ export default function BookingsPage() {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="bg-slate-900 border-gray-800 text-white max-w-md">
+        <DialogContent className="max-w-md" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-400" />
+              <AlertCircle className="w-5 h-5" style={{ color: "var(--status-cancelled)" }} />
               Cancel Booking?
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription style={{ color: "var(--text-secondary)" }}>
               Are you sure you want to cancel this booking? This action cannot be undone and refunds may take 3-5 business days.
             </DialogDescription>
           </DialogHeader>
@@ -543,19 +621,24 @@ export default function BookingsPage() {
             <Button
               onClick={() => setShowDeleteModal(false)}
               variant="outline"
-              className="flex-1 border-gray-700 text-white hover:bg-gray-800"
+              className="flex-1 hover:bg-gray-800"
+              style={{ borderColor: "var(--border-glass)", color: "var(--text-primary)" }}
             >
               Keep Booking
             </Button>
             <Button
               onClick={handleConfirmDelete}
-              className="flex-1 bg-red-600 hover:bg-red-700 font-bold"
+              className="flex-1 font-bold"
+              style={{ background: "var(--status-cancelled)", color: "var(--text-primary)" }}
             >
               Confirm Cancel
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }

@@ -1,0 +1,409 @@
+openapi: 3.0.0
+info:
+  title: SLOTS NUDM/IUDX Parking Data Export API
+  description: |
+    Open, standardized REST API compliant with India's National Urban Digital Mission (NUDM) 
+    and IUDX (India Urban Data Exchange) specifications for real-time parking availability 
+    and pricing data export. This API allows municipal traffic control systems and third-party 
+    mobility apps to consume SLOTS parking data.
+  version: 1.0.0
+  contact:
+    name: SLOTS Research Team
+    email: api-support@slots.example.com
+  license:
+    name: CC-BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+
+servers:
+  - url: https://api.slots.example.com/api/nudm/parking
+    description: Production server
+  - url: https://staging-api.slots.example.com/api/nudm/parking
+    description: Staging server
+  - url: http://localhost:3000/api/nudm/parking
+    description: Development server
+
+tags:
+  - name: Parking Data Export
+    description: Operations for exporting parking facility data
+
+paths:
+  /parking:
+    get:
+      summary: Get parking facilities
+      description: |
+        Retrieve parking facility data in NUDM/IUDX compliant GeoJSON format. 
+        Supports filtering by city, ward, and geographic radius.
+      operationId: getParkingFacilities
+      tags:
+        - Parking Data Export
+      parameters:
+        - name: city
+          in: query
+          description: Filter by city name
+          required: false
+          schema:
+            type: string
+          example: "Chennai"
+      - name: ward_id
+          in: query
+          description: Filter by municipal ward ID
+          required: false
+          schema:
+            type: string
+          example: "WARD-001"
+        - name: radius_km
+          in: query
+          description: Search radius in kilometers (requires lat and lng)
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 50
+          example: 5.0
+        - name: lat
+          in: query
+          description: Center latitude for radius search
+          required: false
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+          example: 13.0827
+        - name: lng
+          in: query
+          description: Center longitude for radius search
+          required: false
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+          example: 80.2707
+        - name: X-API-Key
+          in: header
+          description: API key for authenticated access (optional for public tier)
+          required: false
+          schema:
+            type: string
+          example: "your-api-key-here"
+      responses:
+        '200':
+          description: Successful response with GeoJSON FeatureCollection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeoJSONFeatureCollection'
+              examples:
+                success:
+                  summary: Successful parking data export
+                  value:
+                    type: FeatureCollection
+                    features:
+                      - type: Feature
+                        geometry:
+                          type: Point
+                          coordinates: [80.2707, 13.0827]
+                        properties:
+                          id: "urn:nudm:in:chennai:parking:lot-123"
+                          name: "T Nagar Central Parking"
+                          location:
+                            type: Point
+                            coordinates: [80.2707, 13.0827]
+                          capacity:
+                            total: 120
+                            available: 45
+                            occupied: 75
+                            ev_bays: 10
+                            accessible_bays: 5
+                          pricing:
+                            baseRate: 50
+                            currentRate: 65
+                            currency: "INR"
+                            pricingFactor: 1.3
+                            breakdown:
+                              occupancyMultiplier: 1.2
+                              demandMultiplier: 1.1
+                              eventMultiplier: 1.0
+                          status: "ACTIVE"
+                          timestamp: "2024-01-01T12:00:00.000Z"
+                          "@context": "https://nudm.gov.in/contexts/parking-v1.jsonld"
+                    "@context": "https://nudm.gov.in/contexts/parking-v1.jsonld"
+                    metadata:
+                      total: 1
+                      query:
+                        city: "Chennai"
+                      timestamp: "2024-01-01T12:00:00.000Z"
+                      latency: 45
+                      authenticated: false
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      headers:
+        X-Response-Time:
+          description: Response time in milliseconds
+          schema:
+            type: integer
+          example: 45
+        Cache-Control:
+          description: Cache control header
+          schema:
+            type: string
+          example: "public, max-age=30"
+        X-RateLimit-Limit:
+          description: Rate limit (requests per window)
+          schema:
+            type: integer
+          example: 100
+        X-RateLimit-Remaining:
+          description: Remaining requests in current window
+          schema:
+            type: integer
+          example: 95
+        X-RateLimit-Reset:
+          description: Unix timestamp when rate limit window resets
+          schema:
+            type: integer
+          example: 1704067200
+
+components:
+  schemas:
+    GeoJSONFeatureCollection:
+      type: object
+      required:
+        - type
+        - features
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoJSONFeature'
+        "@context":
+          type: string
+          format: uri
+          example: "https://nudm.gov.in/contexts/parking-v1.jsonld"
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+
+    GeoJSONFeature:
+      type: object
+      required:
+        - type
+        - geometry
+        - properties
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          $ref: '#/components/schemas/GeoJSONPoint'
+        properties:
+          $ref: '#/components/schemas/NUDMParkingFacility'
+
+    GeoJSONPoint:
+      type: object
+      required:
+        - type
+        - coordinates
+      properties:
+        type:
+          type: string
+          enum: [Point]
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+          description: [longitude, latitude] in WGS84
+
+    NUDMParkingFacility:
+      type: object
+      required:
+        - id
+        - name
+        - location
+        - capacity
+        - pricing
+        - status
+        - timestamp
+        - "@context"
+      properties:
+        id:
+          type: string
+          description: Global Unique Identifier in URN format
+          pattern: "^urn:nudm:in:[a-z]+:parking:.+$"
+          example: "urn:nudm:in:chennai:parking:lot-123"
+        name:
+          type: string
+          description: Facility name
+          example: "T Nagar Central Parking"
+        location:
+          $ref: '#/components/schemas/GeoJSONPoint'
+        capacity:
+          $ref: '#/components/schemas/CapacityInfo'
+        pricing:
+          $ref: '#/components/schemas/PricingInfo'
+        status:
+          type: string
+          enum: [ACTIVE, MAINTENANCE, CLOSED]
+          description: Facility operational status
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO-8601 UTC sync time
+        "@context":
+          type: string
+          format: uri
+          description: JSON-LD context URL
+
+    CapacityInfo:
+      type: object
+      required:
+        - total
+        - available
+        - occupied
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of parking bays
+        available:
+          type: integer
+          minimum: 0
+          description: Number of available bays
+        occupied:
+          type: integer
+          minimum: 0
+          description: Number of occupied bays
+        ev_bays:
+          type: integer
+          minimum: 0
+          description: Number of EV charging bays
+        accessible_bays:
+          type: integer
+          minimum: 0
+          description: Number of accessible bays
+
+    PricingInfo:
+      type: object
+      required:
+        - baseRate
+        - currentRate
+        - currency
+        - pricingFactor
+      properties:
+        baseRate:
+          type: number
+          minimum: 0
+          description: Base hourly rate
+        currentRate:
+          type: number
+          minimum: 0
+          description: Current hourly rate with dynamic pricing
+        currency:
+          type: string
+          description: Currency code
+          example: "INR"
+        pricingFactor:
+          type: number
+          minimum: 0
+          description: Total pricing multiplier
+        breakdown:
+          $ref: '#/components/schemas/PricingBreakdown'
+
+    PricingBreakdown:
+      type: object
+      required:
+        - occupancyMultiplier
+        - demandMultiplier
+        - eventMultiplier
+      properties:
+        occupancyMultiplier:
+          type: number
+          minimum: 0
+          description: Occupancy-based multiplier
+        demandMultiplier:
+          type: number
+          minimum: 0
+          description: Demand-based multiplier
+        eventMultiplier:
+          type: number
+          minimum: 0
+          description: Event-based multiplier
+
+    Metadata:
+      type: object
+      required:
+        - total
+        - query
+        - timestamp
+        - latency
+      properties:
+        total:
+          type: integer
+          description: Total number of facilities returned
+        query:
+          type: object
+          description: Query parameters used
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+        latency:
+          type: integer
+          description: Response time in milliseconds
+        authenticated:
+          type: boolean
+          description: Whether request was authenticated
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+
+    RateLimitError:
+      type: object
+      required:
+        - error
+        - retryAfter
+      properties:
+        error:
+          type: string
+          enum: [Rate limit exceeded]
+        retryAfter:
+          type: integer
+          description: Seconds until rate limit resets
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authenticated access (optional for public tier)
+
+security:
+  - ApiKeyAuth: []

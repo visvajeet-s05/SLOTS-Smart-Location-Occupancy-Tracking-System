@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
 }
 
@@ -9,26 +9,53 @@ datasource db {
 }
 
 model booking {
-  id                            String         @id
+  id                            String          @id @default(cuid())
   customerId                    String
   ownerId                       String
   parkingLotId                  String
-  status                        booking_status @default(UPCOMING)
-  createdAt                     DateTime       @default(now())
+  status                        booking_status? @default(PENDING_PAYMENT)
+  createdAt                     DateTime        @default(now())
   amount                        Float
   endTime                       DateTime
   startTime                     DateTime
   vehicleType                   String
-  user_booking_customerIdTouser user           @relation("booking_customerIdTouser", fields: [customerId], references: [id], map: "Booking_customerId_fkey")
-  user_booking_ownerIdTouser    user           @relation("booking_ownerIdTouser", fields: [ownerId], references: [id], map: "Booking_ownerId_fkey")
-  parkinglot                    parkinglot     @relation(fields: [parkingLotId], references: [id], map: "Booking_parkingLotId_fkey")
+  vehicleNumber                 String?
+  lockExpiresAt                 DateTime?
+  updatedAt                     DateTime        @default(now()) @updatedAt
   slotId                        String?
-  slot                          Slot?          @relation(fields: [slotId], references: [id])
+  parkingBayId                  String?
+  actualCheckIn                 DateTime?
+  actualCheckOut                DateTime?
+  allocatedSlotId               String?
+  fineAmount                    Float           @default(0)
+  idempotencyKey                String?         @unique
+  lotConfigSnapshot             String?         @db.LongText
+  occupancyState                OccupancyState  @default(NOT_OCCUPIED)
+  originalSlotId                String?
+  overstayAmount                Float           @default(0)
+  paymentStatus                 payment_status  @default(PENDING)
+  refundAmount                  Float           @default(0)
+  temporaryReassignmentReason   String?
+  user_booking_customerIdTouser user            @relation("booking_customerIdTouser", fields: [customerId], references: [id], map: "Booking_customerId_fkey")
+  user_booking_ownerIdTouser    user            @relation("booking_ownerIdTouser", fields: [ownerId], references: [id], map: "Booking_ownerId_fkey")
+  parkinglot                    parkinglot      @relation(fields: [parkingLotId], references: [id], map: "Booking_parkingLotId_fkey")
+  parkingBay                    parkingbay?     @relation(fields: [parkingBayId], references: [id])
+  slot                          slot?           @relation(fields: [slotId], references: [id])
 
   @@index([customerId], map: "Booking_customerId_fkey")
   @@index([slotId])
+  @@index([originalSlotId])
+  @@index([allocatedSlotId])
+  @@index([parkingBayId])
   @@index([ownerId], map: "Booking_ownerId_fkey")
   @@index([parkingLotId], map: "Booking_parkingLotId_fkey")
+  @@index([status])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([lockExpiresAt])
+  @@index([idempotencyKey])
+  @@index([slotId, status, startTime, endTime])
+  @@index([slotId, status, startTime, endTime], map: "booking_slot_status_time_idx")
 }
 
 model demandprediction {
@@ -41,22 +68,24 @@ model demandprediction {
 }
 
 model event {
-  id              String   @id
-  name            String
-  description     String?
-  lat             Float
-  lng             Float
-  radiusKm        Float
-  startTime       DateTime
-  endTime         DateTime
-  surgeMultiplier Float    @default(1.3)
-  active          Boolean  @default(true)
-  createdBy       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  id          String      @id
+  name        String
+  venue       String
+  eventType   String
+  startTime   DateTime
+  endTime     DateTime
+  impactScore Float       @default(1)
+  lotId       String?
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  parkinglot  parkinglot? @relation(fields: [lotId], references: [id], map: "Event_lotId_fkey")
 
-  @@index([endTime])
-  @@index([startTime])
+  @@index([endTime], map: "Event_endTime_idx")
+  @@index([eventType], map: "Event_eventType_idx")
+  @@index([lotId], map: "Event_lotId_idx")
+  @@index([startTime], map: "Event_startTime_idx")
 }
 
 model exchangerate {
@@ -205,33 +234,37 @@ model parkingincident {
 }
 
 model parkinglot {
-  id           String            @id
-  ownerId      String
-  name         String
-  address      String
-  lat          Float
-  lng          Float
-  status       parkinglot_status @default(DRAFT)
-  cameraUrl    String?
-  totalSlots   Int               @default(120)
-  
-  // Edge Node Architecture Support
-  edgeNodeId   String?           @unique
-  edgeToken    String?           @unique
+  id            String            @id
+  ownerId       String
+  name          String
+  address       String
+  lat           Float
+  lng           Float
+  status        parkinglot_status @default(DRAFT)
+  cameraUrl     String?
+  totalSlots    Int               @default(120)
+  edgeNodeId    String?           @unique
+  edgeToken     String?           @unique
   lastHeartbeat DateTime?
-  ddnsDomain   String?
-  
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime
-  booking      booking[]
-  ownerprofile ownerprofile      @relation(fields: [ownerId], references: [id], onDelete: Cascade, map: "ParkingLot_ownerId_fkey")
-  parkingslot  parkingslot[]
-  priceaudit   priceaudit[]
-  pricingrule  pricingrule[]
-  slots        Slot[]
-  cameras      Camera[]
+  ddnsDomain    String?
+  parkingSiteId String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime
+  timezone      String            @default("Asia/Kolkata")
+  booking       booking[]
+  camera        camera[]
+  event         event[]
+  mediafile     mediafile[]
+  parkinglevel  parkinglevel[]
+  ownerprofile  ownerprofile      @relation(fields: [ownerId], references: [id], onDelete: Cascade, map: "ParkingLot_ownerId_fkey")
+  parkingSite   parkingsite?      @relation(fields: [parkingSiteId], references: [id])
+  parkingslot   parkingslot[]
+  priceaudit    priceaudit[]
+  pricingrule   pricingrule[]
+  slot          slot[]
 
   @@index([ownerId], map: "ParkingLot_ownerId_fkey")
+  @@index([parkingSiteId])
 }
 
 model parkingsetupprogress {
@@ -259,20 +292,30 @@ model parkingslot {
 }
 
 model payment {
-  id           String         @id
-  bookingId    String?        @unique(map: "Payment_bookingId_key")
-  stripeId     String?        @unique(map: "Payment_stripeId_key")
-  amount       Float
-  currency     String
-  status       payment_status @default(PENDING)
-  region       String?
-  cryptoToken  String?
-  cryptoChain  String?
-  cryptoWallet String?
-  txHash       String?
-  confirmedAt  DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime
+  id                      String         @id @default(cuid())
+  bookingId               String?
+  userId                  String?
+  stripeId                String?
+  amount                  Float
+  currency                String         @default("USD")
+  paymentMethod           PaymentMethod  @default(STRIPE_CARD)
+  status                  payment_status @default(PENDING)
+  region                  String?
+  cryptoToken             String?
+  cryptoChain             String?
+  cryptoWallet            String?
+  txHash                  String?
+  stripePaymentIntentId   String?        @unique
+  stripeCheckoutSessionId String?
+  fromAddress             String?
+  confirmedAt             DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@index([stripeId])
+  @@index([status])
+  @@index([txHash])
+  @@index([stripePaymentIntentId])
 }
 
 model priceaudit {
@@ -325,41 +368,46 @@ model review {
 }
 
 model subscription {
-  id                   String              @id
+  id                   String           @id @default(cuid())
   userId               String
-  stripeSubscriptionId String              @unique
-  plan                 subscription_plan
-  status               subscription_status @default(ACTIVE)
-  currentPeriodStart   DateTime
-  currentPeriodEnd     DateTime
-  cancelAtPeriodEnd    Boolean             @default(false)
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime
-  user                 user                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId String?
+  tier                 SubscriptionTier @default(NONE)
+  siteId               String?
+  startDate            DateTime         @default(now())
+  endDate              DateTime
+  isActive             Boolean          @default(true)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  user                 user             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([stripeSubscriptionId])
   @@index([userId])
+  @@index([siteId])
+  @@index([stripeSubscriptionId])
 }
 
 model user {
-  id                               String                @id
-  name                             String
+  id                               String                @id @default(cuid())
+  name                             String?
   email                            String                @unique(map: "User_email_key")
-  password                         String
-  role                             user_role
+  passwordHash                     String?
+  password                         String?
+  role                             user_role             @default(CUSTOMER)
+  phone                            String?
   createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime?
   lastLoginAt                      DateTime?
   preferredCurrency                String                @default("INR")
-  phone                            String?
-  walletBalance                    Float                 @default(0.0)
+  walletBalance                    Float                 @default(0)
   booking_booking_customerIdTouser booking[]             @relation("booking_customerIdTouser")
   booking_booking_ownerIdTouser    booking[]             @relation("booking_ownerIdTouser")
+  fastag                           fastag[]
+  fastagaccount                    fastagaccount[]
   maintenanceschedule              maintenanceschedule[]
   ownerprofile                     ownerprofile?
   parkingincident                  parkingincident[]
+  session                          session[]
   subscription                     subscription[]
   vehicle                          vehicle[]
-  fastags                          Fastag[]
 }
 
 model vehicle {
@@ -369,37 +417,559 @@ model vehicle {
   make         String
   model        String
   color        String
-  fastag       Fastag?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime
+  fastag       fastag?
   user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Vehicle_userId_fkey")
 
   @@index([userId], map: "Vehicle_userId_fkey")
 }
 
-model Fastag {
-  id        String       @id @default(cuid())
-  tagId     String       @unique
-  walletId  String?      
-  vehicleId String       @unique
-  userId    String
-  balance   Float        @default(0.0)
-  status    FastagStatus @default(ACTIVE)
-  issuedAt  DateTime     @default(now())
-  
-  vehicle   vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  user      user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+model ComplianceViolation {
+  id              String        @id @default(cuid())
+  type            String
+  slotId          String
+  vehiclePlate    String
+  severity        String
+  status          String        @default("ACTIVE")
+  durationMinutes Int           @default(0)
+  lotId           String
+  levelId         String?
+  timestamp       DateTime      @default(now())
+  resolvedAt      DateTime?
+  parkingLevel    parkinglevel? @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  slot            slot          @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([vehicleId])
+  @@index([lotId])
+  @@index([status])
+  @@index([timestamp])
+  @@index([levelId])
+  @@index([slotId], map: "compliance_violations_slotId_fkey")
+  @@map("compliance_violations")
 }
 
-enum FastagStatus {
-  ACTIVE
-  BLOCKED
-  BLACKLISTED
-  LOW_BALANCE
+model LandownerSubmission {
+  id                     String    @id @default(cuid())
+  ownerName              String
+  ownerEmail             String
+  ownerPhone             String
+  ownershipProofDocument String?
+  lengthMeters           Float
+  widthMeters            Float
+  areaSqMeters           Float
+  entryLanes             Int
+  exitLanes              Int
+  isMultiStorey          Boolean
+  floors                 Int
+  surfaceType            String
+  gpsLat                 Float
+  gpsLng                 Float
+  plotAddress            String?
+  avgHourlyRateINR       Float
+  surveyResult           String    @db.LongText
+  status                 String    @default("PENDING_REVIEW")
+  submittedAt            DateTime  @default(now())
+  reviewedAt             DateTime?
+  reviewedBy             String?
+  notes                  String?
+
+  @@index([ownerEmail])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("landowner_submissions")
+}
+
+model passwordresettoken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+model auditlog {
+  id             String   @id @default(cuid())
+  actorId        String
+  actorRole      String
+  action         String
+  targetResource String
+  ipAddress      String
+  metadataJson   String   @db.LongText
+  timestamp      DateTime @default(now())
+
+  @@index([action], map: "AuditLog_action_idx")
+  @@index([actorId], map: "AuditLog_actorId_idx")
+  @@index([actorRole], map: "AuditLog_actorRole_idx")
+  @@index([timestamp], map: "AuditLog_timestamp_idx")
+}
+
+model camera {
+  id                  String              @id
+  lotId               String
+  name                String
+  url                 String?
+  levelId             String?
+  zones               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  calibrationAccuracy Float?
+  calibrationMatrix   String?
+  cameraType          String              @default("IP_CAMERA")
+  coverageRadius      Float?
+  isActive            Boolean             @default(true)
+  lastCalibratedAt    DateTime?
+  positionX           Float?
+  positionY           Float?
+  parkinglevel        parkinglevel?       @relation(fields: [levelId], references: [id], map: "Camera_levelId_fkey")
+  parkinglot          parkinglot          @relation(fields: [lotId], references: [id], map: "Camera_lotId_fkey")
+  camerazonemapping   camerazonemapping[]
+  slot                slot[]
+
+  @@index([levelId], map: "Camera_levelId_idx")
+  @@index([lotId], map: "Camera_lotId_idx")
+}
+
+model camerazonemapping {
+  id        String   @id
+  cameraId  String
+  zoneCode  String
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  camera    camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade, map: "CameraZoneMapping_cameraId_fkey")
+
+  @@unique([cameraId, zoneCode], map: "CameraZoneMapping_cameraId_zoneCode_key")
+  @@index([cameraId], map: "CameraZoneMapping_cameraId_idx")
+  @@index([zoneCode], map: "CameraZoneMapping_zoneCode_idx")
+}
+
+model compliancealert {
+  id                  String    @id
+  type                String
+  lotId               String
+  slotId              String
+  vehiclePlateNumber  String?
+  expectedPlateNumber String?
+  severity            String
+  status              String    @default("ACTIVE")
+  metadata            String    @db.LongText
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+  resolvedBy          String?
+
+  @@index([createdAt], map: "ComplianceAlert_createdAt_idx")
+  @@index([lotId], map: "ComplianceAlert_lotId_idx")
+  @@index([severity], map: "ComplianceAlert_severity_idx")
+  @@index([slotId], map: "ComplianceAlert_slotId_idx")
+  @@index([status], map: "ComplianceAlert_status_idx")
+  @@index([type], map: "ComplianceAlert_type_idx")
+}
+
+model demandsnapshot {
+  id                 String              @id
+  siteId             String
+  occupancyRate      Float
+  calculatedRate     Float
+  demandScore        Float
+  weatherCondition   String?
+  isPeakHour         Boolean             @default(false)
+  timestamp          DateTime            @default(now())
+  pricingRuleId      String?
+  dynamicpricingrule dynamicpricingrule? @relation(fields: [pricingRuleId], references: [id], map: "DemandSnapshot_pricingRuleId_fkey")
+  parkingsite        parkingsite         @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "DemandSnapshot_siteId_fkey")
+
+  @@index([isPeakHour], map: "DemandSnapshot_isPeakHour_idx")
+  @@index([pricingRuleId], map: "DemandSnapshot_pricingRuleId_idx")
+  @@index([siteId], map: "DemandSnapshot_siteId_idx")
+  @@index([timestamp], map: "DemandSnapshot_timestamp_idx")
+}
+
+model dynamicpricingrule {
+  id                  String           @id
+  siteId              String
+  baseRatePerHour     Float
+  minRate             Float
+  maxRate             Float
+  occupancyMultiplier Float            @default(1)
+  peakMultiplier      Float            @default(1)
+  eventMultiplier     Float            @default(1)
+  isDynamicEnabled    Boolean          @default(true)
+  updatedAt           DateTime
+  createdAt           DateTime         @default(now())
+  demandsnapshot      demandsnapshot[]
+  parkingsite         parkingsite      @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "DynamicPricingRule_siteId_fkey")
+
+  @@index([isDynamicEnabled], map: "DynamicPricingRule_isDynamicEnabled_idx")
+  @@index([siteId], map: "DynamicPricingRule_siteId_idx")
+}
+
+model edgedevice {
+  id              String            @id
+  siteId          String
+  deviceName      String
+  ipAddress       String
+  status          edgedevice_status @default(OFFLINE)
+  firmwareVersion String?
+  lastHeartbeat   DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  parkingsite     parkingsite       @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "EdgeDevice_siteId_fkey")
+
+  @@index([ipAddress], map: "EdgeDevice_ipAddress_idx")
+  @@index([siteId], map: "EdgeDevice_siteId_idx")
+  @@index([status], map: "EdgeDevice_status_idx")
+}
+
+model edgedevicesecret {
+  id                String   @id
+  deviceId          String   @unique(map: "EdgeDeviceSecret_deviceId_key")
+  secretKey         String
+  previousSecretKey String?
+  rotationTimestamp DateTime @default(now())
+  gracePeriodEndsAt DateTime
+  isActive          Boolean  @default(true)
+
+  @@index([deviceId], map: "EdgeDeviceSecret_deviceId_idx")
+  @@index([gracePeriodEndsAt], map: "EdgeDeviceSecret_gracePeriodEndsAt_idx")
+  @@index([isActive], map: "EdgeDeviceSecret_isActive_idx")
+}
+
+model evsession {
+  id                String           @id
+  slotId            String
+  status            evsession_status @default(ACTIVE)
+  energyConsumedKwh Float            @default(0)
+  powerKw           Float            @default(7.2)
+  costPerKwh        Float            @default(15)
+  startTime         DateTime         @default(now())
+  endTime           DateTime?
+  slot              slot             @relation(fields: [slotId], references: [id], onDelete: Cascade, map: "EVSession_slotId_fkey")
+
+  @@index([slotId], map: "EVSession_slotId_idx")
+  @@index([startTime], map: "EVSession_startTime_idx")
+  @@index([status], map: "EVSession_status_idx")
+}
+
+model fastag {
+  id        String        @id
+  tagId     String        @unique(map: "Fastag_tagId_key")
+  walletId  String?
+  vehicleId String        @unique(map: "Fastag_vehicleId_key")
+  userId    String
+  balance   Float         @default(0)
+  status    fastag_status @default(ACTIVE)
+  issuedAt  DateTime      @default(now())
+  user      user          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Fastag_userId_fkey")
+  vehicle   vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade, map: "Fastag_vehicleId_fkey")
+
+  @@index([userId], map: "Fastag_userId_idx")
+  @@index([vehicleId], map: "Fastag_vehicleId_idx")
+}
+
+model fastagaccount {
+  id            String   @id
+  userId        String
+  tagId         String   @unique(map: "FASTagAccount_tagId_key")
+  vehicleNumber String   @unique(map: "FASTagAccount_vehicleNumber_key")
+  walletBalance Float    @default(1000)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  user          user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "FASTagAccount_userId_fkey")
+
+  @@index([isActive], map: "FASTagAccount_isActive_idx")
+  @@index([tagId], map: "FASTagAccount_tagId_idx")
+  @@index([userId], map: "FASTagAccount_userId_idx")
+  @@index([vehicleNumber], map: "FASTagAccount_vehicleNumber_idx")
+}
+
+model floor {
+  id          String      @id
+  siteId      String
+  levelName   String
+  levelNumber Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  parkingsite parkingsite @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "Floor_siteId_fkey")
+  zone        zone[]
+
+  @@index([levelNumber], map: "Floor_levelNumber_idx")
+  @@index([siteId], map: "Floor_siteId_idx")
+}
+
+model hardwaredevice {
+  id            String                    @id
+  siteId        String
+  name          String
+  deviceType    hardwaredevice_deviceType
+  ipAddress     String?
+  macAddress    String?                   @unique(map: "HardwareDevice_macAddress_key")
+  status        hardwaredevice_status     @default(ONLINE)
+  lastHeartbeat DateTime                  @default(now())
+  createdAt     DateTime                  @default(now())
+  parkingsite   parkingsite               @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "HardwareDevice_siteId_fkey")
+
+  @@index([deviceType], map: "HardwareDevice_deviceType_idx")
+  @@index([lastHeartbeat], map: "HardwareDevice_lastHeartbeat_idx")
+  @@index([siteId], map: "HardwareDevice_siteId_idx")
+  @@index([status], map: "HardwareDevice_status_idx")
+}
+
+model idempotencykeys {
+  id             String   @id
+  actionType     String
+  idempotencyKey String
+  userId         String
+  result         String   @db.LongText
+  processedAt    DateTime @default(now())
+  expiresAt      DateTime
+
+  @@unique([actionType, idempotencyKey], map: "idempotencyKeys_actionType_idempotencyKey_key")
+  @@index([expiresAt], map: "idempotencyKeys_expiresAt_idx")
+  @@index([userId], map: "idempotencyKeys_userId_idx")
+}
+
+model lotconfig {
+  lotId                          String   @unique(map: "lotConfig_lotId_key")
+  advanceBookingHours            Int      @default(12)
+  minBookingLeadMinutes          Int      @default(15)
+  checkinGraceDivisor            Int      @default(6)
+  minCheckinGraceMinutes         Int      @default(5)
+  maxCheckinGraceMinutes         Int      @default(30)
+  refundUsageThreshold           Int      @default(80)
+  minRefundAmount                Float    @default(10)
+  paymentHoldMinutes             Int      @default(5)
+  minBookingDurationMinutes      Int      @default(30)
+  maxBookingDurationMinutes      Int      @default(720)
+  noShowFine                     Float    @default(50)
+  overstayBlockMinutes           Int      @default(30)
+  overstayRatePerBlock           Float    @default(30)
+  overstayMaxChargeMultiple      Int      @default(4)
+  overstayMinMaxCharge           Float    @default(200)
+  turnoverBufferMinutes          Int      @default(5)
+  noCompatibleSlotGraceMinutes   Int      @default(15)
+  cancellationPolicy             String   @db.LongText
+  upcomingBookingReminderMinutes Int      @default(30)
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime
+
+  @@index([lotId], map: "lotConfig_lotId_idx")
+}
+
+model mediafile {
+  id                  String     @id
+  lotId               String
+  slotId              String?
+  type                String
+  filePath            String
+  fileSize            Int        @default(0)
+  createdAt           DateTime   @default(now())
+  isViolationEvidence Boolean    @default(false)
+  metadata            String     @db.LongText
+  parkinglot          parkinglot @relation(fields: [lotId], references: [id], map: "MediaFile_lotId_fkey")
+
+  @@index([createdAt], map: "MediaFile_createdAt_idx")
+  @@index([isViolationEvidence], map: "MediaFile_isViolationEvidence_idx")
+  @@index([lotId], map: "MediaFile_lotId_idx")
+  @@index([type], map: "MediaFile_type_idx")
+}
+
+model occupancylog {
+  id              String                   @id
+  bayId           String
+  vehicleType     occupancylog_vehicleType
+  plateNumber     String
+  entryTime       DateTime                 @default(now())
+  exitTime        DateTime?
+  confidenceScore Float
+  createdAt       DateTime                 @default(now())
+  parkingbay      parkingbay               @relation(fields: [bayId], references: [id], onDelete: Cascade, map: "OccupancyLog_bayId_fkey")
+
+  @@index([bayId], map: "OccupancyLog_bayId_idx")
+  @@index([entryTime], map: "OccupancyLog_entryTime_idx")
+  @@index([plateNumber], map: "OccupancyLog_plateNumber_idx")
+}
+
+model parkingbay {
+  id           String                 @id
+  zoneId       String
+  bayNumber    String
+  vehicleType  parkingbay_vehicleType @default(CAR)
+  status       parkingbay_status      @default(AVAILABLE)
+  currentPlate String?
+  lastUpdated  DateTime               @default(now())
+  createdAt    DateTime               @default(now())
+  bayType      parkingbay_bayType     @default(STANDARD)
+  isAccessible Boolean                @default(false)
+  isReserved   Boolean                @default(false)
+  bookings     booking[]
+  occupancylog occupancylog[]
+  zone         zone                   @relation(fields: [zoneId], references: [id], onDelete: Cascade, map: "ParkingBay_zoneId_fkey")
+
+  @@unique([zoneId, bayNumber], map: "ParkingBay_zoneId_bayNumber_key")
+  @@index([bayNumber], map: "ParkingBay_bayNumber_idx")
+  @@index([bayType], map: "ParkingBay_bayType_idx")
+  @@index([isAccessible], map: "ParkingBay_isAccessible_idx")
+  @@index([status], map: "ParkingBay_status_idx")
+  @@index([zoneId], map: "ParkingBay_zoneId_idx")
+}
+
+model parkinglevel {
+  id                   String                @id
+  parkingLotId         String
+  levelName            String
+  floorNumber          Int
+  totalSlots           Int                   @default(0)
+  cameraCount          Int                   @default(0)
+  mapSvgUrl            String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  camera               camera[]
+  complianceViolations ComplianceViolation[]
+  parkinglot           parkinglot            @relation(fields: [parkingLotId], references: [id], map: "ParkingLevel_parkingLotId_fkey")
+  slot                 slot[]
+
+  @@index([floorNumber], map: "ParkingLevel_floorNumber_idx")
+  @@index([parkingLotId], map: "ParkingLevel_parkingLotId_idx")
+}
+
+model parkingsite {
+  id                 String               @id
+  name               String
+  location           String
+  latitude           Float
+  longitude          Float
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  demandsnapshot     demandsnapshot[]
+  dynamicpricingrule dynamicpricingrule[]
+  edgedevice         edgedevice[]
+  floor              floor[]
+  hardwaredevice     hardwaredevice[]
+  parkingLots        parkinglot[]
+
+  @@index([latitude, longitude], map: "ParkingSite_latitude_longitude_idx")
+}
+
+model processedwebhookevents {
+  id          String   @id
+  eventId     String   @unique(map: "processedWebhookEvents_eventId_key")
+  eventType   String
+  processedAt DateTime @default(now())
+  metadata    String   @db.LongText
+
+  @@index([eventId], map: "processedWebhookEvents_eventId_idx")
+  @@index([eventType], map: "processedWebhookEvents_eventType_idx")
+  @@index([processedAt], map: "processedWebhookEvents_processedAt_idx")
+}
+
+model session {
+  id           String   @id
+  userId       String
+  sessionToken String   @unique(map: "Session_sessionToken_key")
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Session_userId_fkey")
+
+  @@index([expires], map: "Session_expires_idx")
+  @@index([sessionToken], map: "Session_sessionToken_idx")
+  @@index([userId], map: "Session_userId_idx")
+}
+
+model slot {
+  id                   String                @id
+  lotId                String
+  cameraId             String?
+  levelId              String?
+  zoneCode             String?
+  aisleNumber          Int?
+  positionX            Float?
+  positionY            Float?
+  slotNumber           Int
+  row                  String
+  x                    Int?
+  y                    Int?
+  width                Int?
+  height               Int?
+  status               slot_status?          @default(AVAILABLE)
+  aiConfidence         Float                 @default(100)
+  updatedBy            slot_updatedBy        @default(AI)
+  updatedAt            DateTime
+  price                Float                 @default(50)
+  slotType             String                @default("REGULAR")
+  displayName          String?
+  bookings             booking[]
+  complianceViolations ComplianceViolation[]
+  evsession            evsession[]
+  camera               camera?               @relation(fields: [cameraId], references: [id], map: "Slot_cameraId_fkey")
+  parkinglevel         parkinglevel?         @relation(fields: [levelId], references: [id], map: "Slot_levelId_fkey")
+  parkinglot           parkinglot            @relation(fields: [lotId], references: [id], map: "Slot_lotId_fkey")
+
+  @@unique([lotId, slotNumber], map: "Slot_lotId_slotNumber_key")
+  @@index([cameraId], map: "Slot_cameraId_idx")
+  @@index([levelId], map: "Slot_levelId_idx")
+  @@index([lotId], map: "Slot_lotId_idx")
+  @@index([status], map: "Slot_status_idx")
+  @@index([zoneCode], map: "Slot_zoneCode_idx")
+}
+
+model slotallocationhistory {
+  id             String    @id
+  bookingId      String
+  slotId         String
+  allocationType String
+  assignedAt     DateTime  @default(now())
+  releasedAt     DateTime?
+  reason         String?
+
+  @@index([assignedAt], map: "SlotAllocationHistory_assignedAt_idx")
+  @@index([bookingId], map: "SlotAllocationHistory_bookingId_idx")
+  @@index([releasedAt], map: "SlotAllocationHistory_releasedAt_idx")
+  @@index([slotId], map: "SlotAllocationHistory_slotId_idx")
+}
+
+model slotstatuslog {
+  id           String                  @id
+  slotId       String
+  oldStatus    slotstatuslog_oldStatus
+  newStatus    slotstatuslog_newStatus
+  updatedBy    slotstatuslog_updatedBy
+  aiConfidence Float                   @default(100)
+  createdAt    DateTime                @default(now())
+
+  @@index([createdAt], map: "SlotStatusLog_createdAt_idx")
+  @@index([slotId], map: "SlotStatusLog_slotId_idx")
+}
+
+model systemalert {
+  id        String   @id
+  type      String
+  severity  String
+  message   String
+  source    String
+  siteId    String
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt], map: "SystemAlert_createdAt_idx")
+  @@index([siteId], map: "SystemAlert_siteId_idx")
+  @@index([status], map: "SystemAlert_status_idx")
+  @@index([type], map: "SystemAlert_type_idx")
+}
+
+model zone {
+  id         String       @id
+  floorId    String
+  zoneName   String
+  capacity   Int
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime
+  parkingbay parkingbay[]
+  floor      floor        @relation(fields: [floorId], references: [id], onDelete: Cascade, map: "Zone_floorId_fkey")
+
+  @@index([floorId], map: "Zone_floorId_idx")
 }
 
 enum parkingslot_type {
@@ -408,18 +978,26 @@ enum parkingslot_type {
   DISABLED
 }
 
-enum subscription_plan {
-  MONTHLY_RESERVED
-  CORPORATE
-  OWNER_FLEET
-  CUSTOM
+enum SubscriptionTier {
+  NONE
+  MONTHLY_PASS
+  ANNUAL_PASS
+  VIP_UNLIMITED
 }
 
 enum booking_status {
-  UPCOMING
+  PENDING_PAYMENT
+  HELD
+  CONFIRMED
   ACTIVE
   COMPLETED
   CANCELLED
+  CANCELLED_BY_OPERATOR
+  NO_SHOW
+  EXPIRED
+  OVERSTAY
+  PAYMENT_FAILED
+  UPCOMING
 }
 
 enum ownerincident_status {
@@ -453,32 +1031,25 @@ enum parkingincident_status {
   RESOLVED
 }
 
-enum subscription_status {
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  UNPAID
-  INCOMPLETE
-  INCOMPLETE_EXPIRED
-  TRIALING
-}
-
 enum user_role {
+  SUPER_ADMIN
   CUSTOMER
   OWNER
-  ADMIN
-  GATE_OPERATOR
-  SUPERVISOR
-  MANAGER
 }
 
 enum payment_status {
   PENDING
-  PAID
+  PROCESSING
+  COMPLETED
   FAILED
-  CONFIRMED
   REFUNDED
-  PARTIAL_REFUND
+}
+
+enum PaymentMethod {
+  STRIPE_CARD
+  POLYGON_USDC
+  SUBSCRIPTION_CREDIT
+  CASH_VALET
 }
 
 enum parkinglot_status {
@@ -487,16 +1058,86 @@ enum parkinglot_status {
   BLOCKED
 }
 
-// Smart Parking System - Real-time Slot Management
-enum SlotStatus {
-  AVAILABLE
+enum OccupancyState {
+  NOT_OCCUPIED
   OCCUPIED
+  OCCUPANCY_UNCONFIRMED
+  OCCUPANCY_MISMATCH
+}
+
+enum evsession_status {
+  IDLE
+  ACTIVE
+  GRACE_PERIOD
+  CONNECTED
+  CHARGING
+  COMPLETED
+  OVERSTAY
+  FAULT
+}
+
+enum occupancylog_vehicleType {
+  CAR
+  TWO_WHEELER
+  AUTO
+  EV
+}
+
+enum slotstatuslog_oldStatus {
+  AVAILABLE
+  HELD
   RESERVED
+  OCCUPIED
+  BLOCKED
+  MAINTENANCE
+  MAINTENANCE_PENDING
   DISABLED
   CLOSED
 }
 
-enum UpdatedBy {
+enum hardwaredevice_deviceType {
+  BARRIER_GATE
+  FASTAG_READER
+  EV_CHARGER
+  IP_CAMERA
+  ANPR_CAMERA
+}
+
+enum parkingbay_vehicleType {
+  CAR
+  TWO_WHEELER
+  AUTO
+  EV
+}
+
+enum slotstatuslog_newStatus {
+  AVAILABLE
+  HELD
+  RESERVED
+  OCCUPIED
+  BLOCKED
+  MAINTENANCE
+  MAINTENANCE_PENDING
+  DISABLED
+  CLOSED
+}
+
+enum edgedevice_status {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  MAINTENANCE
+  FAULT
+}
+
+enum parkingbay_status {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  TAMPER_ALERT
+}
+
+enum slotstatuslog_updatedBy {
   AI
   OWNER
   CUSTOMER
@@ -504,89 +1145,45 @@ enum UpdatedBy {
   BOOKING
 }
 
-model Camera {
-  id           String     @id @default(cuid())
-  lotId        String
-  name         String
-  url          String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  parkingLot   parkinglot @relation(fields: [lotId], references: [id])
-  slots        Slot[]
-
-  @@index([lotId])
-}
-
-model Slot {
-  id           String     @id @default(cuid())
-  lotId        String
-  cameraId     String?
-  slotNumber   Int
-  row          String
-  x            Int?
-  y            Int?
-  width        Int?
-  height       Int?
-  status       SlotStatus @default(AVAILABLE)
-  aiConfidence Float      @default(100.0)
-  updatedBy    UpdatedBy  @default(AI)
-  updatedAt    DateTime   @updatedAt
-  price        Float      @default(50.0)
-  slotType     String     @default("REGULAR")
-  displayName  String?
-
-  parkingLot   parkinglot @relation(fields: [lotId], references: [id])
-  camera       Camera?    @relation(fields: [cameraId], references: [id])
-  bookings     booking[]
-  evSessions   EVSession[]
-
-  @@unique([lotId, slotNumber])
-  @@index([lotId])
-  @@index([cameraId])
-  @@index([status])
-}
-
-enum EVSessionStatus {
+enum fastag_status {
   ACTIVE
-  GRACE_PERIOD
-  COMPLETED
-  OVERSTAY
+  BLOCKED
+  BLACKLISTED
+  LOW_BALANCE
 }
 
-model EVSession {
-  id          String          @id @default(cuid())
-  slotId      String
-  status      EVSessionStatus @default(ACTIVE)
-  startedAt   DateTime        @default(now())
-  completedAt DateTime?
-  graceEndsAt DateTime?
-  multiplier  Float           @default(1)
-  slot        Slot            @relation(fields: [slotId], references: [id], onDelete: Cascade)
-
-  @@index([slotId, status])
+enum hardwaredevice_status {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  MAINTENANCE
+  FAULT
 }
 
-model SlotStatusLog {
-  id           String     @id @default(cuid())
-  slotId       String
-  oldStatus    SlotStatus
-  newStatus    SlotStatus
-  updatedBy    UpdatedBy
-  aiConfidence Float      @default(100.0)
-  createdAt    DateTime   @default(now())
-
-  @@index([slotId])
-  @@index([createdAt])
+enum parkingbay_bayType {
+  STANDARD
+  ACCESSIBLE
+  EV_CHARGING
+  VIP
+  TWO_WHEELER
 }
 
-model passwordresettoken {
-  id        String   @id @default(cuid())
-  email     String
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+enum slot_status {
+  AVAILABLE
+  HELD
+  RESERVED
+  OCCUPIED
+  BLOCKED
+  MAINTENANCE
+  MAINTENANCE_PENDING
+  DISABLED
+  CLOSED
+}
 
-  @@index([email])
-  @@index([token])
+enum slot_updatedBy {
+  AI
+  OWNER
+  CUSTOMER
+  SYSTEM
+  BOOKING
 }

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ParkingAreaCard from "@/components/parking/parking-area-card"
 import { useParkingSocket } from "@/hooks/useParkingSocket"
 import HeroText from "@/components/hero/HeroText"
+import { StatCard, SemanticBadge, ProgressBar, EmptyState } from "@/components/design-system"
 
 // Dynamically import the map to prevent SSR issues
 const ParkingMap = dynamic(() => import("@/components/map/parking-map"), {
@@ -135,11 +136,13 @@ export default function FindParkingPage() {
 
   const stats = {
     total: allAreas.length,
-    available: allAreas.filter(a => a.status === "available").length,
-    totalSpots: allAreas.reduce((sum, a) => sum + a.availableSlots, 0),
-    avgRating: allAreas.length > 0 
-      ? (allAreas.reduce((sum, a) => sum + a.rating, 0) / allAreas.length).toFixed(1)
-      : "0.0",
+    available: allAreas.reduce((sum, a) => sum + a.availableSlots, 0),
+    totalSpots: allAreas.reduce((sum, a) => sum + a.totalSlots, 0),
+    avgRating: (() => {
+      const ratedLots = allAreas.filter(a => a.rating > 0)
+      if (ratedLots.length === 0) return "New"
+      return (ratedLots.reduce((sum, a) => sum + a.rating, 0) / ratedLots.length).toFixed(1)
+    })(),
   }
 
   const handleParkingSelect = (parkingId: string) => {
@@ -206,57 +209,43 @@ export default function FindParkingPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-6"
         >
-          <motion.div
-            whileHover={{ y: -4 }}
-            className="bg-gray-800/60 backdrop-blur-sm border border-blue-700/30 rounded-lg p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-300 text-sm font-medium">Total Parking</p>
-                <p className="text-2xl font-bold text-white">{stats.total}</p>
-              </div>
-              <MapPinIcon className="w-8 h-8 text-blue-400/60" />
-            </div>
-          </motion.div>
-
-          <motion.div 
-            whileHover={{ y: -4 }}
-            className="bg-gradient-to-br from-green-900/30 to-green-800/10 border border-green-700/30 rounded-lg p-4 backdrop-blur"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-300 text-sm font-medium">Available</p>
-                <p className="text-2xl font-bold text-white">{stats.available}</p>
-              </div>
-              <Car className="w-8 h-8 text-green-400/60" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -4 }}
-            className="bg-gray-800/60 backdrop-blur-sm border border-purple-700/30 rounded-lg p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-300 text-sm font-medium">Total Spaces</p>
-                <p className="text-2xl font-bold text-white">{stats.totalSpots}</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-purple-400/60" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -4 }}
-            className="bg-gray-800/60 backdrop-blur-sm border border-yellow-700/30 rounded-lg p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-yellow-300 text-sm font-medium">Avg Rating</p>
-                <p className="text-2xl font-bold text-white">{stats.avgRating}★</p>
-              </div>
-              <Star className="w-8 h-8 text-yellow-400/60 fill-yellow-400" />
-            </div>
-          </motion.div>
+          <StatCard
+            label="Total Parking"
+            value={stats.total}
+            icon={MapPin}
+            color="var(--text-primary)"
+            glow="var(--accent-glow)"
+            delay={0}
+            ariaLabel="Total parking locations"
+          />
+          <StatCard
+            label="Available"
+            value={stats.available}
+            icon={Car}
+            color="var(--status-available)"
+            glow="rgba(34, 197, 94, 0.2)"
+            delay={0.1}
+            trend={{ value: 8, isPositive: true }}
+            ariaLabel="Available parking spots"
+          />
+          <StatCard
+            label="Total Spaces"
+            value={stats.totalSpots}
+            icon={TrendingUp}
+            color="var(--text-primary)"
+            glow="var(--accent-glow)"
+            delay={0.2}
+            ariaLabel="Total parking spaces"
+          />
+          <StatCard
+            label="Avg Rating"
+            value={typeof stats.avgRating === 'number' ? `${stats.avgRating}★` : "New"}
+            icon={Star}
+            color={typeof stats.avgRating === 'number' ? "#E0B989" : "var(--text-muted)"}
+            glow={typeof stats.avgRating === 'number' ? "rgba(201, 165, 116, 0.2)" : "rgba(148, 163, 184, 0.1)"}
+            delay={0.3}
+            ariaLabel="Average rating"
+          />
         </motion.div>
 
         {/* Search & Filters */}

@@ -1,0 +1,14 @@
+# SLOTS Edge Sync Daemon Requirements
+# Python dependencies for offline storage and MQTT synchronization
+
+# MQTT Client
+paho-mqtt>=1.6.1
+
+# Database (built-in sqlite3, but these are useful utilities)
+# No additional packages needed for SQLite3
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Optional: Better SQLite handling
+# aiosqlite>=0.19.0  # For async SQLite operations

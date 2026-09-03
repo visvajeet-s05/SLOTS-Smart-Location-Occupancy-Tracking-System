@@ -1,29 +1,48 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════╗
-║   SLOTIFY SMART PARKING AI SERVICE  v5.0  — PRODUCTION SYSTEM            ║
-║   YOLOv8 Edge AI · CAR-ONLY Detection · Booking-Aware State Engine       ║
-║   Dual-Thread Pipeline · Direct MySQL · WebSocket · Auto Discovery       ║
+║   SLOTIFY SMART PARKING AI SERVICE  v5.1  — EDGE AI UPGRADE             ║
+║   EnhancedVision · CLAHE Preprocessing · ONNX/TensorRT · Temporal EMA   ║
+║   Dual-Thread Pipeline · Direct MySQL · WebSocket · VLM Escalation      ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 
 ARCHITECTURE:
   [Camera Thread]      — reads frames, auto-reconnects on fail
-  [Detect Thread]      — runs YOLOv8, slot matching, debounce
+  [Detect Thread]      — runs EnhancedVehicleDetector + temporal smoothing
   [Heartbeat Thread]   — sends pulse to central API every 30s
   [Config Sync Thread] — re-fetches camera URL + slot config every 5 min
   [Booking Sync Thread]— re-fetches active bookings every 10s
   [DDNS Thread]        — updates DuckDNS/Cloudflare with current IP
   [Flask Thread]       — serves MJPEG stream + REST API
 
-DETECTION:
-  Model     : YOLOv8 Nano (ultralytics)
-  Target    : COCO Classes = car(2) ONLY — ALL other objects REJECTED
-  Confidence: 0.50 (high-precision mode)
+DETECTION (Module 1 — Edge AI Upgrade):
+  Engine    : EnhancedVehicleDetector (CLAHE + ONNX/TensorRT + Torch fallback)
+  Model     : yolov8n.onnx (with yolov8n.pt PyTorch fallback)
+  Target    : COCO Classes = car(2), motorcycle(3), bus(5), truck(7)
+  Preprocess: CLAHE (LAB L-channel, clip=2.0, tile=8x8)
+  Smoothing : Temporal EMA (alpha=0.15) — sub-50ms debounce
+  Accel     : TensorRT → CUDA → OpenVINO → CPU (auto-detect)
+  VLM       : Low-confidence escalation (0.15-0.40)
 
 STATE ENGINE:
   AVAILABLE  — No booking, no car detected
   RESERVED   — Booking active, car not yet arrived
   OCCUPIED   — Car physically detected (highest priority)
 """
+
+import sys
+import io
+
+# Force UTF-8 output on Windows consoles (cp1252 cannot encode box-drawing chars)
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
@@ -38,6 +57,7 @@ import requests
 import mysql.connector
 from dotenv import load_dotenv
 import uuid
+from typing import List, Dict, Any, Tuple, Optional
 
 # Optional imports — degrade gracefully if not installed
 try:
@@ -53,6 +73,27 @@ try:
 except ImportError:
     HAS_SCANNER = False
     print("[WARN] scanner not available — auto-discovery disabled", flush=True)
+
+# Enhanced Vision Engine (Module 1 — Edge AI Upgrade)
+try:
+    import sys
+    # Add project root to path for edge-service imports
+    _proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _proj_root not in sys.path:
+        sys.path.insert(0, _proj_root)
+    from edge_service.vision.enhanced_detector import (
+        EnhancedVehicleDetector,
+        Detection,
+        ExecutionProvider,
+        PipelineMode,
+        CLAHEPreprocessor,
+    )
+    HAS_ENHANCED_VISION = True
+    print("[ENHANCED] Enhanced vision engine loaded", flush=True)
+except ImportError as e:
+    HAS_ENHANCED_VISION = False
+    print(f"[WARN] Enhanced vision engine not available: {e}", flush=True)
+    print("[WARN] Falling back to legacy YOLOv8 PyTorch pipeline", flush=True)
 
 
 # ── Load .env ──────────────────────────────────────────────────────────────
@@ -109,6 +150,14 @@ CAR_ONLY_CLASS_ID = 2
 CONFIDENCE_THRESHOLD = 0.30  # Low enough for toy cars, high enough for less noise
 INFERENCE_MAX_DIM    = 1920
 SYNC_INTERVAL        = 0.5   # 500ms — Sane update rate to prevent DB saturation during checkouts
+
+# Enhanced Vision Engine config (Module 1)
+ENHANCED_MODEL_PATH     = os.getenv("ENHANCED_MODEL_PATH", "yolov8n.onnx")
+ENHANCED_THERMAL_MODEL  = os.getenv("ENHANCED_THERMAL_MODEL", "")
+ENHANCED_USE_CLAE      = os.getenv("ENHANCED_USE_CLAE", "true").lower() == "true"
+ENHANCED_SMOOTHING_ALPHA = float(os.getenv("ENHANCED_SMOOTHING_ALPHA", "0.15"))
+ENHANCED_OCCUPANCY_THRESHOLD = float(os.getenv("ENHANCED_OCCUPANCY_THRESHOLD", "0.35"))
+ENHANCED_PIPELINE_MODE  = os.getenv("ENHANCED_PIPELINE_MODE", "auto").lower()
 
 # Slot-Matching Logic (Optimized for toy cars/manual placement)
 REF_W, REF_H         = 1920, 1080
@@ -419,29 +468,103 @@ class SmartMonitor:
         self._booked_slots: set = set()  # Set of slot IDs with active bookings
         self._booking_lock = threading.Lock()
 
-        # AI Model
+# AI Model
         self.net          = None
         self.model_loaded = False
+        self.enhanced_detector = None  # EnhancedVehicleDetector instance (Module 1)
         self._load_model()
 
     # ── Model Loading ──────────────────────────────────────────────────────
+    # Uses EnhancedVehicleDetector (CLAHE + ONNX/TensorRT + temporal smoothing)
+    # Falls back to legacy YOLOv8 PyTorch if enhanced engine unavailable
 
     def _load_model(self):
+        # Try enhanced engine first (Module 1)
+        if HAS_ENHANCED_VISION:
+            try:
+                from edge_service.vision.enhanced_detector import (
+                    EnhancedVehicleDetector,
+                    ExecutionProvider,
+                    PipelineMode,
+                    resolve_model_path,
+                )
+
+                # Determine best execution provider
+                provider = ExecutionProvider.AUTO
+                if os.getenv("ENHANCED_FORCE_CPU", "false").lower() == "true":
+                    provider = ExecutionProvider.CPU
+                elif os.getenv("ENHANCED_FORCE_CUDA", "false").lower() == "true":
+                    provider = ExecutionProvider.CUDA
+                elif os.getenv("ENHANCED_FORCE_TENSORRT", "false").lower() == "true":
+                    provider = ExecutionProvider.TENSORRT
+                elif os.getenv("ENHANCED_FORCE_HAILO", "false").lower() == "true":
+                    provider = ExecutionProvider.HAILO
+
+                pipeline_mode = PipelineMode.RGB
+                if ENHANCED_PIPELINE_MODE == "thermal":
+                    pipeline_mode = PipelineMode.THERMAL
+                elif ENHANCED_PIPELINE_MODE == "auto":
+                    pipeline_mode = PipelineMode.AUTO
+
+                model_path = resolve_model_path(ENHANCED_MODEL_PATH)
+                thermal_path = (
+                    resolve_model_path(ENHANCED_THERMAL_MODEL)
+                    if ENHANCED_THERMAL_MODEL
+                    else None
+                )
+
+                # Optional VLM callback for uncertain detections (0.15 <= conf < 0.40)
+                vlm_callback = None
+                try:
+                    from edge_service.vlm_fallback.validator import LowConfidenceValidator
+                    vlm_callback = lambda crop, cls_name: True  # placeholder until VLM model wired
+                except ImportError:
+                    pass
+
+                print(f"[ENHANCED] Loading EnhancedVehicleDetector (provider={provider.value})...", flush=True)
+                self.enhanced_detector = EnhancedVehicleDetector(
+                    model_path=model_path,
+                    thermal_model_path=thermal_path,
+                    use_clahe=ENHANCED_USE_CLAE,
+                    conf_threshold=CONFIDENCE_THRESHOLD,
+                    iou_threshold=0.45,
+                    execution_provider=provider,
+                    pipeline_mode=pipeline_mode,
+                    smoothing_alpha=ENHANCED_SMOOTHING_ALPHA,
+                    occupancy_threshold=ENHANCED_OCCUPANCY_THRESHOLD,
+                    vlm_callback=vlm_callback,
+                )
+                # Warm-up pass
+                dummy_frame = np.zeros((320, 320, 3), dtype=np.uint8)
+                _ = self.enhanced_detector.detect_vehicles(dummy_frame)
+
+                self.model_loaded = True
+                print("[ENHANCED] OK: Enhanced Vehicle Detector loaded — Edge AI Active", flush=True)
+                return
+            except Exception as e:
+                print(f"[ENHANCED] Enhanced detector load failed: {e}", flush=True)
+                print("[ENHANCED] Falling back to legacy YOLOv8 PyTorch...", flush=True)
+                self.enhanced_detector = None
+
+        # Legacy fallback: YOLOv8 PyTorch
         try:
             from ultralytics import YOLO
             import logging
-            # lower ultralytics logging so it doesn't spam console
             logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
-            print("[AI] Loading YOLOv8 nano model...", flush=True)
-            self.net = YOLO("yolov8n.pt")
+            print("[AI] Loading YOLOv8 nano model (legacy fallback)...", flush=True)
+            pt_path = ENHANCED_MODEL_PATH.replace(".onnx", ".pt")
+            if HAS_ENHANCED_VISION:
+                from edge_service.vision.enhanced_detector import resolve_model_path
+                pt_path = resolve_model_path(pt_path)
+            self.net = YOLO(pt_path)
             
             # Warm-up pass
             dummy_frame = np.zeros((320, 320, 3), dtype=np.uint8)
             self.net.predict(dummy_frame, verbose=False)
 
             self.model_loaded = True
-            print("[AI] OK: YOLO Model loaded — Edge AI Active", flush=True)
+            print("[AI] OK: YOLO Model loaded — Legacy Edge AI Active", flush=True)
         except Exception as e:
             print(f"[ERROR] Model load failed: {e}", flush=True)
             self.model_loaded = False
@@ -694,8 +817,13 @@ class SmartMonitor:
             except Exception:
                 continue
 
-            if not self.model_loaded or self.net is None:
+            if not self.model_loaded:
                 # No model — just keep last frame alive
+                with self.lock:
+                    self.last_frame = frame
+                continue
+
+            if self.enhanced_detector is None and self.net is None:
                 with self.lock:
                     self.last_frame = frame
                 continue
@@ -720,9 +848,114 @@ class SmartMonitor:
             # Reduced sleep to keep processing throughput high
             time.sleep(0.01)
 
-    # ── AI Detection ───────────────────────────────────────────────────────
+# ── AI Detection ───────────────────────────────────────────────────────
+    # Enhanced engine path: Uses EnhancedVehicleDetector (CLAHE + ONNX/TensorRT + temporal smoothing)
+    # Legacy path: Uses YOLOv8 PyTorch fallback with integer buffer
 
     def _detect_and_update(self, frame: np.ndarray) -> tuple[np.ndarray, list[dict]]:
+        if self.enhanced_detector is not None:
+            return self._detect_and_update_enhanced(frame)
+        else:
+            return self._detect_and_update_legacy(frame)
+
+    def _detect_and_update_enhanced(self, frame: np.ndarray) -> tuple[np.ndarray, list[dict]]:
+        """
+        Enhanced detection pipeline:
+          1. CLAHE preprocessing (LAB L-channel)
+          2. ONNX/TensorRT inference
+          3. Slot mapping with temporal EMA smoothing
+          4. VLM confidence escalation for uncertain detections
+        """
+        # ROI cropping
+        orig_h, orig_w = frame.shape[:2]
+        rx, ry, rw, rh = self.roi
+        rx = int(rx * orig_w / REF_W)
+        ry = int(ry * orig_h / REF_H)
+        rw = int(rw * orig_w / REF_W)
+        rh = int(rh * orig_h / REF_H)
+        rx = max(0, min(rx, orig_w - 10))
+        ry = max(0, min(ry, orig_h - 10))
+        rw = max(10, min(rw, orig_w - rx))
+        rh = max(10, min(rh, orig_h - ry))
+        cropped = frame[ry:ry+rh, rx:rx+rw]
+        crop_h, crop_w = cropped.shape[:2]
+
+        # Use enhanced detector's built-in CLAHE preprocessing + inference
+        detections = self.enhanced_detector.detect_vehicles(cropped)
+
+        # Build slot polygons from config
+        slot_polygons = []
+        for idx, slot in enumerate(self.slots):
+            sid = slot.get("id")
+            if not sid:
+                continue
+            raw_x = slot.get("x")
+            raw_y = slot.get("y")
+            if (raw_x is None or raw_x == 0) and (raw_y is None or raw_y == 0):
+                cols = 6
+                row = idx // cols
+                col = idx % cols
+                sx = 150 + col * 280
+                sy = 150 + row * 180
+                sw, sh = 240, 140
+            else:
+                sx = float(raw_x or 0)
+                sy = float(raw_y or 0)
+                sw = float(slot.get("width") or 240)
+                sh = float(slot.get("height") or 140)
+            slot_polygons.append({
+                "id": sid,
+                "slotNumber": slot.get("slotNumber"),
+                "coordinates": [[sx, sy], [sx + sw, sy], [sx + sw, sy + sh], [sx, sy + sh]],
+            })
+
+        # Map detections to slots with temporal smoothing + VLM escalation
+        slot_results = self.enhanced_detector.map_vehicles_to_slots(
+            detections=detections,
+            slot_polygons=slot_polygons,
+            overlap_threshold=SLOT_OVERLAP_MIN,
+            use_smoothing=True,
+            frame=cropped,
+        )
+
+        # Apply booking-aware state logic on top of enhanced detection
+        changed_slots = []
+        for sr in slot_results:
+            sid = sr["slotId"]
+            prev = self.slot_status.get(sid, "AVAILABLE")
+            detection_status = sr["status"] == "OCCUPIED"
+
+            # Booking-aware override: if slot is booked but no car, keep RESERVED
+            final = sr["status"]
+            if not detection_status and self._has_active_booking(sid):
+                final = "RESERVED"
+            elif detection_status:
+                final = "OCCUPIED"
+            else:
+                final = "AVAILABLE"
+
+            if final != prev:
+                if self._is_valid_transition(prev, final):
+                    self.slot_status[sid] = final
+                    changed_slots.append({
+                        "slot_id": sid,
+                        "slot_number": sr.get("slotNumber", ""),
+                        "old_status": prev,
+                        "new_status": final,
+                    })
+                else:
+                    print(f"[STATE] Blocked invalid transition: {prev} → {final} for slot {sid}", flush=True)
+
+        # Annotate frame with enhanced overlay
+        annotated = self._annotate_frame(cropped, detections, slot_results, crop_h, crop_w)
+
+        return annotated, changed_slots
+
+    def _detect_and_update_legacy(self, frame: np.ndarray) -> tuple[np.ndarray, list[dict]]:
+        """
+        Legacy detection pipeline — YOLOv8 PyTorch fallback with integer buffer.
+        Used when EnhancedVehicleDetector is not available.
+        """
         # PHASE 1: ROI-BASED CROPPING (full frame for virtual-cam-1)
         orig_h, orig_w = frame.shape[:2]
         
@@ -743,8 +976,6 @@ class SmartMonitor:
         frame = frame[ry:ry+rh, rx:rx+rw]
         
         # PHASE 2: ASPECT-RATIO-PRESERVING RESIZE
-        # Old code forced 640x480 which DESTROYED aspect ratio on wide crops.
-        # Now we scale down maintaining ratio — YOLO handles its own internal resize.
         crop_h, crop_w = frame.shape[:2]
         scale = min(INFERENCE_MAX_DIM / crop_w, INFERENCE_MAX_DIM / crop_h)
         if scale < 1.0:
@@ -804,12 +1035,7 @@ class SmartMonitor:
             cv2.putText(frame, f"CAR {conf:.0%}", (int(x1), int(y1) - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 0), 1)
 
-        if rejected_count > 0:
-            # Verbose logging to find toy car class IDs
-            pass 
-
         # ── STATE DECISION ENGINE (Booking-Aware) ──────────────────────────
-        # Priority: OCCUPIED (car detected) > RESERVED (booking) > AVAILABLE
         changed_slots = []
         for idx, slot in enumerate(self.slots):
             sid = slot.get("id")
@@ -855,7 +1081,6 @@ class SmartMonitor:
                 final = "OCCUPIED"
             # Rule 2: No car, buffer cleared → check booking status
             elif buf <= CLEAR_THRESHOLD:
-                # Check if this slot has an active booking → RESERVED
                 has_booking = self._has_active_booking(sid)
                 if has_booking:
                     final = "RESERVED"
@@ -866,7 +1091,6 @@ class SmartMonitor:
                 final = prev
 
             if final != prev:
-                # Validate state transition
                 if self._is_valid_transition(prev, final):
                     self.slot_status[sid] = final
                     changed_slots.append({
@@ -878,26 +1102,22 @@ class SmartMonitor:
                 else:
                     print(f"[STATE] Blocked invalid transition: {prev} → {final} for slot {slot.get('slotNumber')}", flush=True)
 
-            # Overlay on local frame for visual check
-            # Need to scale REF_W slots back to current 640x480 view
+            # Overlay on local frame
             rx_ref, ry_ref, rw_ref, rh_ref = self.roi
             if (sx_ref + sw_ref > rx_ref and sx_ref < rx_ref + rw_ref and
                 sy_ref + sh_ref > ry_ref and sy_ref < ry_ref + rh_ref):
                 
-                # Transform to local view coords
                 lsx = int((sx_ref - rx_ref) * w / rw_ref)
                 lsy = int((sy_ref - ry_ref) * h / rh_ref)
                 lsw = int(sw_ref * w / rw_ref)
                 lsh = int(sh_ref * h / rh_ref)
                 
-                # Overlay on frame
-                # Color coding: OCCUPIED=Red, RESERVED=Blue, AVAILABLE=Green
                 if final == "OCCUPIED":
-                    color = (0, 0, 220)  # Red
+                    color = (0, 0, 220)
                 elif final == "RESERVED":
-                    color = (220, 160, 0)  # Blue
+                    color = (220, 160, 0)
                 else:
-                    color = (0, 210, 0)  # Green
+                    color = (0, 210, 0)
                 cv2.rectangle(frame, (lsx, lsy), (lsx + lsw, lsy + lsh), color, 2)
                 cv2.putText(frame, f"S{slot['slotNumber']} {final[:3]}",
                             (lsx + 2, lsy + 14),
@@ -911,6 +1131,79 @@ class SmartMonitor:
                     (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
         return frame, changed_slots
+
+    def _annotate_frame(
+        self,
+        frame: np.ndarray,
+        detections: List[Detection],
+        slot_results: List[Dict[str, Any]],
+        crop_h: int,
+        crop_w: int,
+    ) -> np.ndarray:
+        """Annotate frame with detection boxes and slot status overlay."""
+        from edge_service.vision.enhanced_detector import Detection as EnhancedDetection
+
+        # Draw detection boxes
+        for det in detections:
+            x1, y1, x2, y2 = det.bbox
+            # Scale to current crop dimensions
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            label = f"{det.class_name} {det.confidence:.0%}"
+            cv2.putText(frame, label, (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
+        # Draw slot overlays
+        occ_count = 0
+        for sr in slot_results:
+            status = sr["status"]
+            is_occ = status == "OCCUPIED"
+            if is_occ:
+                occ_count += 1
+
+            # Color coding
+            if status == "OCCUPIED":
+                color = (0, 0, 220)
+            elif status == "RESERVED":
+                color = (220, 160, 0)
+            else:
+                color = (0, 210, 0)
+
+            # Find slot polygon coordinates from self.slots
+            sid = sr["slotId"]
+            for slot in self.slots:
+                if slot.get("id") == sid:
+                    raw_x = slot.get("x")
+                    raw_y = slot.get("y")
+                    if raw_x is not None and raw_y is not None:
+                        sx = int(float(raw_x))
+                        sy = int(float(raw_y))
+                        sw = int(float(slot.get("width", 240)))
+                        sh = int(float(slot.get("height", 140)))
+                    else:
+                        sx, sy, sw, sh = 0, 0, 240, 140
+                    # Scale to crop view
+                    rx_ref, ry_ref, rw_ref, rh_ref = self.roi
+                    lsx = int((sx - rx_ref) * crop_w / rw_ref) if rw_ref > 0 else sx
+                    lsy = int((sy - ry_ref) * crop_h / rh_ref) if rh_ref > 0 else sy
+                    lsw = int(sw * crop_w / rw_ref) if rw_ref > 0 else sw
+                    lsh = int(sh * crop_h / rh_ref) if rh_ref > 0 else sh
+                    cv2.rectangle(frame, (lsx, lsy), (lsx + lsw, lsy + lsh), color, 2)
+                    cv2.putText(frame, f"S{slot.get('slotNumber', '')} {status[:3]}",
+                                (lsx + 2, lsy + 14),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38, color, 1)
+                    break
+
+        # HUD
+        total = len(self.slots)
+        perf = self.enhanced_detector.get_performance_stats() if self.enhanced_detector else {}
+        latency = perf.get("avg_latency_ms", 0)
+        cv2.putText(
+            frame,
+            f"SLOTIFY AI v5.1 | {self.camera_id} | Occ:{occ_count}/{total} | {latency:.0f}ms | CLAHE",
+            (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2,
+        )
+
+        return frame
 
     # ── Persist Changes ────────────────────────────────────────────────────
 
@@ -989,10 +1282,13 @@ def stream(lot_id: str, camera_id="virtual-cam-1"):
         monitors[key].start()
         time.sleep(1.0)
 
+    # Capture the query arg here (within the request context) before entering
+    # the generator, which runs in a separate thread without request context.
+    use_raw = request.args.get("clean", "false").lower() == "true"
+
     def generate():
         print(f"[Stream] Starting MJPEG generator for {key}", flush=True)
         mon = monitors[key]
-        use_raw = request.args.get("clean", "false").lower() == "true"
         while mon.running:
             with mon.lock:
                 frame = mon.latest_raw_frame if use_raw else mon.last_frame
@@ -1038,8 +1334,8 @@ def health():
         "status":           "running" if overall_running else "stopped",
         "camera":           "connected" if overall_running else "disconnected",
         "model":            "loaded" if overall_model else "unloaded",
-        "ai_model":         "YOLOv8",
-        "version":          "5.0",
+        "ai_model":         "EnhancedVehicleDetector" if HAS_ENHANCED_VISION else "YOLOv8",
+        "version":          "5.1",
         "db_connected":     bool(_db_writer._conn and _db_writer._conn.is_connected()),
         "active_monitors":  list(monitors.keys()),
         "detailed_status":  status,
@@ -1118,8 +1414,31 @@ def debug_detection(lot_id: str):
         "inference_max_dim": INFERENCE_MAX_DIM,
     }
 
-    if not mon.model_loaded or mon.net is None:
+    if not mon.model_loaded:
         result["error"] = "Model not loaded"
+        return jsonify(result)
+
+    if mon.enhanced_detector is not None:
+        cropped = frame
+        crop_h, crop_w = cropped.shape[:2]
+        detections = mon.enhanced_detector.detect_vehicles(cropped)
+        result["engine"] = "enhanced"
+        result["performance"] = mon.enhanced_detector.get_performance_stats()
+        result["detections"] = [
+            {
+                "class_id": d.class_id,
+                "class_name": d.class_name,
+                "confidence": round(d.confidence, 3),
+                "bbox": d.bbox,
+                "source": d.source,
+            }
+            for d in detections
+        ]
+        result["total_detections"] = len(detections)
+        return jsonify(result)
+
+    if mon.net is None:
+        result["error"] = "Legacy model not loaded"
         return jsonify(result)
 
     # Apply same ROI + resize as the detection pipeline

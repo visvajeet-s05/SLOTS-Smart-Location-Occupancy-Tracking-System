@@ -57,7 +57,10 @@ export class SubscriptionManager {
     const existingSubscription = await prisma.subscription.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'TRIALING'] }
+        isActive: true,
+        endDate: {
+          gt: new Date()
+        }
       }
     })
 
@@ -78,8 +81,8 @@ export class SubscriptionManager {
     let customerId = await this.getStripeCustomerId(userId)
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.name,
+        email: user.email || undefined,
+        name: user.name || undefined,
         metadata: { userId }
       })
       customerId = customer.id
@@ -99,10 +102,10 @@ export class SubscriptionManager {
         id: crypto.randomUUID(),
         userId,
         stripeSubscriptionId: subscription.id,
-        plan: planId as any,
-        status: subscription.status?.toUpperCase() as any,
-        currentPeriodStart: new Date(subscriptionAny.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscriptionAny.current_period_end * 1000),
+        tier: "MONTHLY_PASS" as any,
+        startDate: new Date(subscriptionAny.current_period_start * 1000),
+        endDate: new Date(subscriptionAny.current_period_end * 1000),
+        isActive: true,
         updatedAt: new Date()
       }
     })
@@ -117,7 +120,10 @@ export class SubscriptionManager {
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'TRIALING'] }
+        isActive: true,
+        endDate: {
+          gt: new Date()
+        }
       }
     })
 
@@ -127,23 +133,26 @@ export class SubscriptionManager {
 
     if (cancelAtPeriodEnd) {
       // Cancel at period end
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        cancel_at_period_end: true
-      })
+      if (subscription.stripeSubscriptionId) {
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          cancel_at_period_end: true
+        })
+      }
 
       await prisma.subscription.update({
         where: { id: subscription.id },
-        data: { cancelAtPeriodEnd: true }
+        data: { isActive: false }
       })
     } else {
       // Cancel immediately
-      await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
+      if (subscription.stripeSubscriptionId) {
+        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
+      }
 
       await prisma.subscription.update({
         where: { id: subscription.id },
         data: {
-          status: 'CANCELED',
-          cancelAtPeriodEnd: false
+          isActive: false,
         }
       })
     }
@@ -174,7 +183,7 @@ export class SubscriptionManager {
   }
 
   private async handleSubscriptionChange(subscription: Stripe.Subscription): Promise<void> {
-    const dbSubscription = await prisma.subscription.findUnique({
+    const dbSubscription = await prisma.subscription.findFirst({
       where: { stripeSubscriptionId: subscription.id }
     })
 
@@ -183,10 +192,9 @@ export class SubscriptionManager {
       await prisma.subscription.update({
         where: { id: dbSubscription.id },
         data: {
-          status: subscription.status.toUpperCase() as any,
-          currentPeriodStart: new Date(subscriptionAny.current_period_start * 1000),
-          currentPeriodEnd: new Date(subscriptionAny.current_period_end * 1000),
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          isActive: subscription.status === 'active',
+          startDate: new Date(subscriptionAny.current_period_start * 1000),
+          endDate: new Date(subscriptionAny.current_period_end * 1000),
           updatedAt: new Date()
         }
       })
@@ -197,7 +205,7 @@ export class SubscriptionManager {
     await prisma.subscription.updateMany({
       where: { stripeSubscriptionId: subscription.id },
       data: {
-        status: 'CANCELED',
+        isActive: false,
         updatedAt: new Date()
       }
     })
@@ -220,7 +228,10 @@ export class SubscriptionManager {
     return await prisma.subscription.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'TRIALING'] }
+        isActive: true,
+        endDate: {
+          gt: new Date()
+        }
       }
     })
   }
@@ -265,7 +276,7 @@ export class SubscriptionManager {
       select: { stripeSubscriptionId: true }
     })
 
-    if (subscription) {
+    if (subscription && subscription.stripeSubscriptionId) {
       const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId)
       return stripeSub.customer as string
     }

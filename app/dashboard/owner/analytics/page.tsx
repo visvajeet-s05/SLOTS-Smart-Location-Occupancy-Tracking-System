@@ -138,7 +138,7 @@ export default function OwnerAnalyticsPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative max-w-7xl mx-auto px-6 pt-0 pb-20 space-y-8"
+         className="relative w-full max-w-[1440px] mx-auto px-6 lg:px-8 pt-0 pb-20 space-y-8"
       >
         {/* Header */}
         <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -190,7 +190,7 @@ export default function OwnerAnalyticsPage() {
         ) : (
           <>
             {/* Overview Cards */}
-            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <motion.div variants={itemVariants} className="grid w-full grid-cols-1 md:grid-cols-4 gap-6">
               <AnalyticsCard
                 icon={<Car className="text-cyan-400" />}
                 label="Average Occupancy"
@@ -230,20 +230,20 @@ export default function OwnerAnalyticsPage() {
             </motion.div>
 
             {/* Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <motion.div variants={itemVariants} className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div variants={itemVariants} className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 backdrop-blur-xl">
                 <PeakHoursChart
                   data={analytics.peakHours.hourlyData}
                   peakHour={analytics.peakHours.peakHour}
                 />
               </motion.div>
-              <motion.div variants={itemVariants} className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+              <motion.div variants={itemVariants} className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 backdrop-blur-xl">
                 <OccupancyTrends data={analytics.occupancyTrends} />
               </motion.div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <motion.div variants={itemVariants} className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <motion.div variants={itemVariants} className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 backdrop-blur-xl">
                 <RevenueChart
                   totalRevenue={analytics.revenue.totalRevenue}
                   commission={analytics.revenue.totalRevenue * 0.12}
@@ -251,7 +251,7 @@ export default function OwnerAnalyticsPage() {
                   netPayout={analytics.revenue.totalRevenue * 0.7}
                 />
               </motion.div>
-              <motion.div variants={itemVariants} className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+              <motion.div variants={itemVariants} className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 backdrop-blur-xl">
                 <AIAccuracyChart
                   accuracy={analytics.aiAccuracy.accuracy}
                   confidence={analytics.aiAccuracy.confidence}
@@ -262,7 +262,7 @@ export default function OwnerAnalyticsPage() {
             </div>
 
             {/* Insights Panel */}
-            <motion.div variants={itemVariants} className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
+            <motion.div variants={itemVariants} className="w-full bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
               <div className="flex items-center gap-3 mb-8">
                 <div className="p-2 bg-white/5 rounded-lg border border-white/10">
                   <TrendingUp size={24} className="text-cyan-400" />

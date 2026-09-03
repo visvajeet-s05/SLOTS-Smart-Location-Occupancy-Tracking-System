@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
 import crypto from "crypto"
@@ -10,17 +10,20 @@ export async function POST(req: NextRequest) {
         const session = await getServerSession(authOptions)
 
         if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 })
+            return NextResponse.json({ error: "Unauthorized", message: "Authentication required" }, { status: 401 })
         }
 
         const body = await req.json()
         const { slotId, duration, amount, licensePlate, vehicleModel, parkingLotId, currency = "inr" } = body
 
-        console.log(`[PAYMENT_INTENT] Creating intent for Lot: ${parkingLotId}, Slot: ${slotId}, Amount: ${amount}`)
+        console.log(`[PAYMENT_INTENT] Creating intent for Lot: ${parkingLotId}, Slot: ${slotId}, Amount: ${amount}, Plate: ${licensePlate}`)
 
         if (!slotId || !duration || !amount || !parkingLotId) {
             console.error("[PAYMENT_INTENT] Missing fields:", { slotId, duration, amount, parkingLotId })
-            return new NextResponse("Missing required fields", { status: 400 })
+            return NextResponse.json(
+                { error: "Bad Request", message: "Missing required fields" },
+                { status: 400 }
+            )
         }
 
         const user = await prisma.user.findUnique({
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (!user) {
-            return new NextResponse("User not found", { status: 404 })
+            return NextResponse.json({ error: "Not Found", message: "User not found" }, { status: 404 })
         }
 
         // Check if slot is available
@@ -40,14 +43,19 @@ export async function POST(req: NextRequest) {
         })
 
         if (!slot) {
-            return new NextResponse("Slot not found", { status: 404 })
+            return NextResponse.json({ error: "Not Found", message: "Slot not found" }, { status: 404 })
         }
 
-        // Allow booking if status is AVAILABLE or if it was just RESERVED (likely by this user in a previous attempt)
-        // In a real app, we would verify the reservation holder, but for this demo/MVP, we'll allow re-booking a reserved slot.
-        if (slot.status !== "AVAILABLE" && slot.status !== "RESERVED") {
-            return new NextResponse("Slot is no longer available", { status: 409 })
+        // Slot status check - more lenient for demo purposes
+        if (slot.status === "CLOSED" || slot.status === "DISABLED") {
+            console.log(`[PAYMENT_INTENT] Slot permanently unavailable: ${slot.status}`)
+            return NextResponse.json(
+                { error: "Slot Unavailable", message: "Slot is no longer available" },
+                { status: 409 }
+            )
         }
+
+        console.log(`[PAYMENT_INTENT] Slot status check passed: ${slot.status}`)
 
         // Vehicle Logic (Reuse from bookings/route.ts)
         let vehicleId = null
@@ -85,12 +93,12 @@ export async function POST(req: NextRequest) {
         })
 
         if (conflictingBooking) {
-            return new NextResponse(
-                JSON.stringify({ 
+            return NextResponse.json(
+                { 
                     error: "Slot Unavailable", 
                     message: "Someone else is currently booking this slot for the selected time. Please choose another." 
-                }), 
-                { status: 409, headers: { "Content-Type": "application/json" } }
+                }, 
+                { status: 409 }
             )
         }
 
@@ -105,7 +113,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (!parkingLot) {
-            return new NextResponse("Parking lot not found", { status: 404 })
+            return NextResponse.json({ error: "Not Found", message: "Parking lot not found" }, { status: 404 })
         }
 
         const bookingId = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`

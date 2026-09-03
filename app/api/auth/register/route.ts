@@ -1,40 +1,74 @@
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
-import crypto from "crypto"
+import { hashPassword } from "@/lib/auth"
+import { z } from "zod"
 
-export async function POST(req: Request) {
+const registerSchema = z.object({
+  name: z.string().min(2).optional(),
+  email: z.string().email(),
+  password: z.string().min(8),
+  phone: z.string().optional(),
+})
+
+export async function POST(req: NextRequest) {
   try {
-    const { name, email, password } = await req.json()
-
-    if (!name || !email || !password) {
-      return new Response("Missing fields", { status: 400 })
-    }
-
+    const body = await req.json()
+    
+    // Validate input
+    const validatedData = registerSchema.parse(body)
+    
+    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: validatedData.email },
     })
-
+    
     if (existingUser) {
-      return new Response("User already exists", { status: 409 })
+      return NextResponse.json(
+        { error: "User with this email already exists" },
+        { status: 400 }
+      )
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    await prisma.user.create({
+    
+    // Hash password
+    const passwordHash = await hashPassword(validatedData.password)
+    
+    // Create user with default CUSTOMER role
+    const user = await prisma.user.create({
       data: {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        password: hashedPassword,
+        email: validatedData.email,
+        name: validatedData.name,
+        passwordHash,
+        phone: validatedData.phone,
         role: "CUSTOMER",
       },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+      },
     })
-
-    return Response.json({
-      message: "Customer registered successfully",
-    })
+    
+    return NextResponse.json(
+      { 
+        message: "User registered successfully",
+        user,
+      },
+      { status: 201 }
+    )
   } catch (error) {
-    console.error(error)
-    return new Response("Internal Server Error", { status: 500 })
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid input", details: error.errors },
+        { status: 400 }
+      )
+    }
+    
+    console.error("Registration error:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
   }
 }

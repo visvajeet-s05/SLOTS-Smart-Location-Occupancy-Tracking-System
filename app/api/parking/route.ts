@@ -20,13 +20,13 @@ export async function GET() {
           status: true,
           cameraUrl: true,
           createdAt: true,
-          edgeNodeId: true, 
+          edgeNodeId: true,
           lastHeartbeat: true,
           ddnsDomain: true,
           ownerprofile: {
             include: { user: { select: { name: true, email: true } } }
           },
-          slots: {
+          slot: {
             select: { id: true, status: true, price: true, slotType: true }
           }
         },
@@ -50,7 +50,7 @@ export async function GET() {
           ownerprofile: {
             include: { user: { select: { name: true, email: true } } }
           },
-          slots: {
+          slot: {
             select: { id: true, status: true, price: true, slotType: true }
           }
         },
@@ -60,14 +60,14 @@ export async function GET() {
 
     // Transform data for customer dashboard
     const transformedLots = parkingLots.map((lot: any) => {
-      const totalSlots = lot.slots?.length || 0
-      const availableSlots = (lot.slots || []).filter((s: any) => s.status === "AVAILABLE").length
-      const occupiedSlots = (lot.slots || []).filter((s: any) => s.status === "OCCUPIED").length
-      const reservedSlots = (lot.slots || []).filter((s: any) => s.status === "RESERVED").length
+      const totalSlots = lot.slot?.length || 0
+      const availableSlots = (lot.slot || []).filter((s: any) => s.status === "AVAILABLE").length
+      const occupiedSlots = (lot.slot || []).filter((s: any) => s.status === "OCCUPIED").length
+      const reservedSlots = (lot.slot || []).filter((s: any) => s.status === "RESERVED").length
 
       // Calculate average price from slots
       const avgPrice = totalSlots > 0
-        ? Math.round(lot.slots.reduce((sum: number, s: any) => sum + (s.price || 0), 0) / totalSlots)
+        ? Math.round(lot.slot.reduce((sum: number, s: any) => sum + (s.price || 0), 0) / totalSlots)
         : 50
 
       // Determine status based on availability
@@ -83,6 +83,11 @@ export async function GET() {
           ? ownerName
           : `${ownerName} Parking`
       }
+
+      // Calculate real rating from reviews or return 0 for "not rated"
+      // Note: This would require fetching reviews for each lot
+      // For now, we'll return 0 to indicate "not rated" rather than fake 4.5
+      const rating = 0 // This should be calculated from actual reviews in production
 
       return {
         id: lot.id,
@@ -106,7 +111,7 @@ export async function GET() {
         isOnline: lot.lastHeartbeat ? (Math.abs(new Date().getTime() - new Date(lot.lastHeartbeat).getTime()) < 300000) : false,
         features: ["CCTV", "24/7", "Security"],
         distance: 0,
-        rating: 4.5,
+        rating: rating, // 0 indicates "not rated"
         openingHours: "24/7",
         coordinates: [lot.lat, lot.lng] as [number, number]
       }

@@ -2,7 +2,7 @@
 import prisma from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-options"
 
 export async function GET() {
     try {
@@ -15,9 +15,9 @@ export async function GET() {
         const [totalRevenue, successfulPaymentsCount, recentPayments] = await Promise.all([
             prisma.payment.aggregate({
                 _sum: { amount: true },
-                where: { status: "PAID" }
+                where: { status: "COMPLETED" }
             }),
-            prisma.payment.count({ where: { status: "PAID" } }),
+            prisma.payment.count({ where: { status: "COMPLETED" } }),
             prisma.payment.findMany({
                 take: 10,
                 orderBy: { createdAt: "desc" },

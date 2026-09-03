@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # 1. Pub/Sub & Delta Deduplication Bus
+  redis:
+    image: redis:7-alpine
+    container_name: slots-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+  # 2. MARL Dynamic Pricing Engine
+  pricing-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        SERVICE_PATH: apps/pricing-service
+        SERVICE_PORT: 8001
+    container_name: slots-pricing
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./apps/pricing-service:/app/app
+
+  # 3. FASTag Payment & Auto-Settlement Service
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        SERVICE_PATH: apps/payment-service
+        SERVICE_PORT: 8002
+    container_name: slots-payment
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./apps/payment-service:/app/app
+
+  # 4. WebTransport & Socket.IO Gateway
+  realtime-service:
+    build:
+      context: ./realtime-service
+      dockerfile: Dockerfile
+    container_name: slots-realtime
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./realtime-service/src:/app/src
+
+  # 5. Live Edge Vision & IP Webcam Stream Ingestion
+  edge-vision:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    container_name: slots-edge-vision
+    environment:
+      - IP_WEBCAM_URL=${IP_WEBCAM_URL:-http://100.125.245.26:8080/video}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - USE_THREADED_STREAM=True
+    network_mode: "host"  # Required to access host network Wi-Fi IP (100.125.245.26)
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./edge_service:/app/edge_service
+      - ./scripts:/app/scripts
+      - ./yolov8n.onnx:/app/models/yolov8n.onnx
+      - ./yolov8n_int8.onnx:/app/models/yolov8n_int8.onnx
+
+  # 6. OCPP 2.0.1 Smart EV Charging Gateway
+  ev-charging-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        SERVICE_PATH: apps/ev-charging-service
+        SERVICE_PORT: 8003
+    container_name: slots-ev-charging
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./apps/ev-charging-service:/app/app
+
+  # 7. ISO 23374 V2X Wayfinding & AVP Service
+  v2x-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        SERVICE_PATH: apps/v2x-service
+        SERVICE_PORT: 8004
+    container_name: slots-v2x
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SLOTS_LAYOUT_CONFIG=/app/config/slots_calibration.json
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./apps/v2x-service:/app/app
+      - ./config:/app/config
+
+volumes:
+  redis_data:
+    driver: local

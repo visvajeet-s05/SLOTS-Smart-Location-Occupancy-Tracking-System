@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 import {
   LayoutDashboard,
   BarChart3,
@@ -132,8 +132,8 @@ export default function OwnerSidebar({ onLogout }: OwnerSidebarProps) {
     <aside className="w-64 min-h-screen bg-gray-950 border-r border-gray-800 px-4 py-6 flex flex-col">
       {/* Header */}
       <div className="mb-8 px-2">
-        <Logo size="small" />
-        <div className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mt-2 ml-1 opacity-70">
+        <SLOTSLogo size="small" />
+        <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mt-2 ml-1 opacity-70">
           Owner Portal
         </div>
       </div>
@@ -152,7 +152,7 @@ export default function OwnerSidebar({ onLogout }: OwnerSidebarProps) {
               className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition
                 ${
                   isActive
-                    ? "bg-purple-600/20 text-purple-400"
+                    ? "bg-indigo-600/20 text-indigo-400"
                     : "text-gray-400 hover:bg-gray-800 hover:text-white"
                 }
               `}

@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useSession, signOut } from "next-auth/react"
 import { Role } from "@/lib/auth/roles"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 
 export default function CustomerNavbar() {
   const pathname = usePathname()
@@ -48,11 +48,11 @@ export default function CustomerNavbar() {
       <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 group">
-          <Logo size="small" className="hover:scale-105 transition-transform duration-300" />
+          <SLOTSLogo size="small" showPing={true} className="hover:scale-105 transition-transform duration-300" />
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center space-x-1 bg-white/5 rounded-full p-1 border border-white/5">
+        <div className="hidden md:flex items-center space-x-1 rounded-full p-1 border" style={{ background: "var(--bg-glass)", borderColor: "var(--border-glass)" }}>
           {dashboardLinks.map((link) => {
             const isActive = pathname === link.href
             return (
@@ -64,11 +64,12 @@ export default function CustomerNavbar() {
                 {isActive && (
                   <motion.div
                     layoutId="navbar-indicator"
-                    className="absolute inset-0 bg-white/10 rounded-full"
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: "var(--accent)" }}
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
                 )}
-                <span className={`relative z-10 ${isActive ? "text-white" : "text-gray-400 hover:text-white"}`}>
+                <span className={`relative z-10 ${isActive ? "text-white" : ""}`} style={{ color: isActive ? "var(--text-primary)" : "var(--text-secondary)" }}>
                   {link.name}
                 </span>
               </Link>
@@ -79,43 +80,49 @@ export default function CustomerNavbar() {
         {/* Right side */}
         <div className="flex items-center gap-4">
           <div className="relative hidden lg:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "var(--text-muted)" }} />
             <Input
               placeholder="Search bookings..."
-              className="pl-10 h-9 bg-white/5 border-white/10 text-white w-64 focus:bg-black/50 focus:border-cyan-500/50 transition-all rounded-full placeholder-gray-500 text-sm"
+              className="pl-10 h-9 w-64 focus-visible:ring-0 rounded-full text-sm placeholder:text-slate-500"
+              style={{ 
+                background: "var(--bg-glass)",
+                border: "1px solid var(--border-glass)",
+                color: "var(--text-primary)"
+              }}
             />
           </div>
 
-          <div className="h-6 w-px bg-white/10 mx-2 hidden md:block" />
+          <div className="h-6 w-px mx-2 hidden md:block" style={{ background: "var(--border-glass)" }} />
 
-          <Button variant="ghost" size="icon" className="relative text-gray-400 hover:text-white hover:bg-white/5 rounded-full">
+          <Button variant="ghost" size="icon" className="relative rounded-full" style={{ color: "var(--text-secondary)" }}>
             <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-gray-950"></span>
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full border-2" style={{ background: "var(--error)", borderColor: "var(--bg-void)" }}></span>
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-3 pl-2 pr-4 py-1 hover:bg-white/5 rounded-full border border-transparent hover:border-white/5 transition-all">
-                <Avatar className="h-8 w-8 ring-2 ring-white/10">
+              <Button variant="ghost" className="flex items-center gap-3 pl-2 pr-4 py-1 rounded-full border border-transparent hover:bg-white/5 hover:border-white/5 transition-all">
+                <Avatar className="h-8 w-8 ring-2 ring-white/10" style={{ boxShadow: "0 0 0 2px var(--accent-dim)" }}>
                   <AvatarImage src="/placeholder-user.svg" />
-                  <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold text-xs">
+                  <AvatarFallback className="font-bold text-xs" style={{ background: "var(--accent)", color: "var(--text-primary)" }}>
                     {userInitial}
                   </AvatarFallback>
                 </Avatar>
-                <div className="hidden sm:flex flex-col items-start leading-none group-hover:text-white transition-colors">
-                  <span className="text-sm font-semibold text-gray-200 group-hover:text-white">
+                <div className="hidden sm:flex flex-col items-start leading-none transition-colors">
+                  <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                     {session?.user?.name || "Customer"}
                   </span>
-                  <span className="text-[10px] text-gray-500 font-medium tracking-wide">
+                  <span className="text-[10px] font-medium tracking-wide" style={{ color: "var(--text-muted)" }}>
                     {session?.user?.email || userEmail}
                   </span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-40 bg-gray-900 border-gray-800 text-gray-200 shadow-xl rounded-xl p-1">
+            <DropdownMenuContent align="end" className="w-40 shadow-xl rounded-xl p-1" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>
               <DropdownMenuItem
-                className="text-red-400 cursor-pointer hover:bg-red-500/10 hover:text-red-300 rounded-lg focus:bg-red-500/10 focus:text-red-300 transition-colors"
+                className="cursor-pointer rounded-lg transition-colors"
+                style={{ color: "var(--error)" }}
                 onClick={() => signOut({ callbackUrl: "/" })}
               >
                 Logout
@@ -141,7 +148,8 @@ export default function CustomerNavbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="md:hidden bg-gray-950 border-t border-white/5 overflow-hidden"
+            className="md:hidden overflow-hidden"
+            style={{ background: "var(--bg-void)", borderTopColor: "var(--border-glass)" }}
           >
             <div className="px-6 py-8 space-y-6">
               <div className="flex flex-col space-y-4">
@@ -150,7 +158,8 @@ export default function CustomerNavbar() {
                     key={link.name}
                     href={link.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-lg font-bold text-gray-400 hover:text-white transition-colors"
+                    className="text-lg font-bold transition-colors"
+                    style={{ color: "var(--text-secondary)" }}
                   >
                     {link.name}
                   </Link>
@@ -158,7 +167,8 @@ export default function CustomerNavbar() {
               </div>
               <Button 
                 variant="outline" 
-                className="w-full h-14 border-red-500/20 text-red-500 rounded-2xl font-bold uppercase tracking-widest text-xs"
+                className="w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs"
+                style={{ borderColor: "var(--error)", color: "var(--error)" }}
                 onClick={() => signOut({ callbackUrl: "/" })}
               >
                 Terminate Session
@@ -169,4 +179,4 @@ export default function CustomerNavbar() {
       </AnimatePresence>
     </motion.nav>
   )
-}
+}

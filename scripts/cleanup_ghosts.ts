@@ -12,7 +12,7 @@ async function reset() {
   console.log(`Found ${badBookings.length} ACTIVE bookings. Scanning for phantom checkouts...`);
   
   const payments = await prisma.payment.findMany({
-    where: { status: 'PAID' }
+    where: { status: 'COMPLETED' }
   });
   
   const paidBookingIds = payments.map(p => p.bookingId);

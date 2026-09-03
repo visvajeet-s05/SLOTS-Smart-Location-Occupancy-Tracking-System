@@ -9,8 +9,8 @@ export default function GlobalDashboardPulse() {
   const router = useRouter()
 
   useEffect(() => {
-    // Only apply to Owners, Admins, and Staff as requested (Management roles)
-    if (session?.user?.role === "OWNER" || session?.user?.role === "ADMIN" || session?.user?.role === "STAFF") {
+    // Only apply to Owners and Super Admins as requested (Management roles)
+    if ((session?.user?.role as any) === "OWNER" || (session?.user?.role as any) === "SUPER_ADMIN") {
       // Professional auto-refresh interval (every 10 seconds)
       // This ensures all server-side data is re-sync'd globally across sub-pages
       const interval = setInterval(() => {

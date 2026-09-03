@@ -47,6 +47,12 @@ type PaymentModalProps = {
     duration: number
     onSuccess: () => void
     parkingAddress?: string
+    slotType?: string
+    vehiclePlate?: string
+    vehicleModel?: string
+    totalAmount?: number
+    serviceFee?: number
+    gst?: number
 }
 
 export default function PaymentModal({
@@ -59,7 +65,13 @@ export default function PaymentModal({
     pricePerHour,
     duration,
     onSuccess,
-    parkingAddress = "123 Main St, Downtown"
+    parkingAddress = "123 Main St, Downtown",
+    slotType = "STANDARD",
+    vehiclePlate = "",
+    vehicleModel = "",
+    totalAmount = 0,
+    serviceFee = 10,
+    gst = 0
 }: PaymentModalProps) {
     const { toast } = useToast()
     const [clientSecret, setClientSecret] = useState("")
@@ -67,9 +79,16 @@ export default function PaymentModal({
     const [isMock, setIsMock] = useState(false)
     const [step, setStep] = useState(1)
 
-    const subtotal = pricePerHour * duration
-    const serviceFee = 10
-    const total = subtotal + serviceFee
+    // Use the slotType prop directly in pricing calculations
+    const currentSlotType = slotType
+    const basePrice = pricePerHour * duration
+    const evPremium = currentSlotType === "EV" ? 20 * duration : 0
+    const subtotal = basePrice + evPremium + serviceFee
+    const total = totalAmount || subtotal + gst
+
+    // Use the vehicle data from prop
+    const plateToUse = vehiclePlate || "TN-EX-9999"
+    const modelToUse = vehicleModel || localVehicleModel || "Registered Vehicle"
 
     // Fetch Client Secret on Open
     useEffect(() => {
@@ -89,6 +108,8 @@ export default function PaymentModal({
                             duration,
                             amount: total,
                             parkingLotId,
+                            licensePlate: plateToUse,
+                            vehicleModel: vehicleModel || localVehicleModel || modelToUse,
                             currency: "inr"
                         }),
                         signal: controller.signal
@@ -97,12 +118,26 @@ export default function PaymentModal({
                     clearTimeout(timeoutId)
 
                     if (!res.ok) {
-                        const errData = await res.json().catch(() => ({ error: "Unknown Error" }))
-                        console.error("[PAYMENT] API Error Response:", errData)
-                        
+                        const textResponse = await res.text()
+                        console.error("[PAYMENT] API Error Response (raw):", textResponse, "Status:", res.status)
+                        let errData
+                        try {
+                            errData = JSON.parse(textResponse)
+                        } catch {
+                            errData = { error: "Unknown Error", rawResponse: textResponse }
+                        }
+                        console.error("[PAYMENT] API Error Response (parsed):", errData)
+
                         // Handle specific business errors
                         if (res.status === 409) {
-                            throw new Error("Slot is no longer available. Someone else might be booking it.")
+                            const errorMsg = errData.message || errData.error || "Slot is no longer available. Someone else might be booking it."
+                            toast({
+                                title: "Slot Unavailable",
+                                description: errorMsg,
+                                variant: "destructive"
+                            })
+                            onClose()
+                            return
                         }
                         throw new Error(errData.message || errData.error || "Server failed to create payment session")
                     }
@@ -149,7 +184,7 @@ export default function PaymentModal({
             }
             createIntent()
         }
-    }, [isOpen, slotId, duration, total, parkingLotId, toast])
+    }, [isOpen, slotId, duration, total, parkingLotId, toast, vehiclePlate, vehicleModel])
 
     if (!isOpen) return null
 
@@ -182,6 +217,9 @@ export default function PaymentModal({
                                 pricePerHour={pricePerHour}
                                 subtotal={subtotal}
                                 serviceFee={serviceFee}
+                                basePrice={basePrice}
+                                evPremium={evPremium}
+                                gst={gst}
                                 onSuccess={onSuccess}
                                 onClose={onClose}
                                 isMock={true}
@@ -190,6 +228,9 @@ export default function PaymentModal({
                                 parkingAddress={parkingAddress}
                                 step={step}
                                 setStep={setStep}
+                                slotType={currentSlotType}
+                                vehiclePlate={vehiclePlate}
+                                vehicleModel={vehicleModel}
                             />
                         </div>
                     ) : clientSecret ? (
@@ -222,6 +263,9 @@ export default function PaymentModal({
                                 pricePerHour={pricePerHour}
                                 subtotal={subtotal}
                                 serviceFee={serviceFee}
+                                basePrice={basePrice}
+                                evPremium={evPremium}
+                                gst={gst}
                                 onSuccess={onSuccess}
                                 onClose={onClose}
                                 isMock={isMock}
@@ -230,6 +274,9 @@ export default function PaymentModal({
                                 parkingAddress={parkingAddress}
                                 step={step}
                                 setStep={setStep}
+                                slotType={currentSlotType}
+                                vehiclePlate={vehiclePlate}
+                                vehicleModel={vehicleModel}
                             />
                         </Elements>
                     ) : (
@@ -270,6 +317,9 @@ interface CheckoutContentProps {
     pricePerHour: number
     subtotal: number
     serviceFee: number
+    basePrice?: number
+    evPremium?: number
+    gst?: number
     onSuccess: () => void
     onClose: () => void
     isMock?: boolean
@@ -278,6 +328,9 @@ interface CheckoutContentProps {
     parkingAddress: string
     step: number
     setStep: (step: number) => void
+    slotType?: string
+    vehiclePlate?: string
+    vehicleModel?: string
 }
 
 function CheckoutContent({
@@ -290,6 +343,9 @@ function CheckoutContent({
     pricePerHour,
     subtotal,
     serviceFee,
+    basePrice = 0,
+    evPremium = 0,
+    gst = 0,
     onSuccess,
     onClose,
     isMock = false,
@@ -297,7 +353,10 @@ function CheckoutContent({
     parkingLotId,
     parkingAddress,
     step,
-    setStep
+    setStep,
+    slotType = "STANDARD",
+    vehiclePlate = "",
+    vehicleModel = ""
 }: CheckoutContentProps) {
     const stripe = isMock ? null : useStripe()
     const elements = isMock ? null : useElements()
@@ -311,34 +370,44 @@ function CheckoutContent({
 
     // Vehicle Data
     const [licensePlate, setLicensePlate] = useState("")
-    const [vehicleModel, setVehicleModel] = useState("")
+    const [localVehicleModel, setLocalVehicleModel] = useState("")
     const [isLoadingProfile, setIsLoadingProfile] = useState(true)
     const [selectedMethod, setSelectedMethod] = useState<"card" | "upi" | "netbanking" | null>(null)
+
+    // Use the vehicle plate from prop
+    const plateToUse = vehiclePlate || licensePlate || "TN-EX-9999"
 
     useEffect(() => {
         if (typeof window !== "undefined") {
             setWindowSize({ width: window.innerWidth, height: window.innerHeight })
         }
 
-        // Fetch Profile
-        const fetchProfile = async () => {
-            try {
-                const res = await fetch("/api/user/profile")
-                if (res.ok) {
-                    const data = await res.json()
-                    if (data.vehicle) {
-                        setLicensePlate(data.vehicle.licensePlate)
-                        setVehicleModel(data.vehicle.model)
+        // Pre-fill vehicle data if provided from checkout
+        if (vehiclePlate) {
+            setLicensePlate(vehiclePlate)
+            setLocalVehicleModel(vehicleModel || "Registered Vehicle")
+            setIsLoadingProfile(false)
+        } else {
+            // Fetch Profile only if no vehicle provided
+            const fetchProfile = async () => {
+                try {
+                    const res = await fetch("/api/user/profile")
+                    if (res.ok) {
+                        const data = await res.json()
+                        if (data.vehicle) {
+                            setLicensePlate(data.vehicle.licensePlate)
+                            setLocalVehicleModel(data.vehicle.model)
+                        }
                     }
+                } catch (error) {
+                    console.error("Failed to fetch profile", error)
+                } finally {
+                    setIsLoadingProfile(false)
                 }
-            } catch (error) {
-                console.error("Failed to fetch profile", error)
-            } finally {
-                setIsLoadingProfile(false)
             }
+            fetchProfile()
         }
-        fetchProfile()
-    }, [])
+    }, [vehiclePlate, vehicleModel])
 
     const handlePayment = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -357,9 +426,9 @@ function CheckoutContent({
             return
         }
 
-        // Auto-fill defaults for testing if empty to ensure flow isn't blocked
-        const plateToUse = licensePlate || "TN-EX-9999"
-        const modelToUse = vehicleModel || "Guest Vehicle"
+        // Use the local state values (which may have been pre-filled from props or edited by user)
+        const paymentModelToUse = localVehicleModel || vehicleModel || modelToUse
+        const paymentPlateToUse = licensePlate || plateToUse
 
         setIsProcessing(true)
 
@@ -397,7 +466,7 @@ function CheckoutContent({
                         url = await QRCode.toDataURL(JSON.stringify({
                             bookingId: bookingId || "MOCK_BK_" + Date.now(),
                             slot: slotNumber,
-                            plate: plateToUse,
+                            plate: paymentPlateToUse,
                             paymentId: "MOCK_PAYMENT_" + Date.now()
                         }))
                     } catch (qrErr) {
@@ -454,7 +523,7 @@ function CheckoutContent({
                 confirmParams: {
                     return_url: window.location.href,
                     payment_method_data: {
-                        billing_details: { name: plateToUse }
+                        billing_details: { name: paymentPlateToUse }
                     }
                 }
             })
@@ -498,7 +567,7 @@ function CheckoutContent({
                         const url = await QRCode.toDataURL(JSON.stringify({
                             bookingId: bookingId,
                             slot: slotNumber,
-                            plate: plateToUse,
+                            plate: paymentPlateToUse,
                             paymentId: result.paymentIntent.id
                         }))
                         setQrBase64(url)
@@ -558,9 +627,11 @@ function CheckoutContent({
                         </h3>
 
                         <div className="space-y-6">
-                            <div className="bg-slate-800/30 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+                            <div className="bg-slate-800/30 p-4 rounded-2xl border border-white/5 backdrop-blur-sm" style={{
+                              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03) inset"
+                            }}>
                                 <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center text-purple-400 font-black text-2xl border border-purple-500/30 shadow-inner">
+                                    <div className="w-14 h-14 bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 rounded-xl flex items-center justify-center text-indigo-400 font-black text-2xl border border-indigo-500/30 shadow-inner">
                                         S{slotNumber}
                                     </div>
                                     <div>
@@ -583,25 +654,45 @@ function CheckoutContent({
                                     </span>
                                     <span className="text-white font-semibold">₹{pricePerHour}/hr</span>
                                 </div>
+                                {slotType === "EV" && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500 flex items-center gap-2">
+                                            <span className="text-cyan-400">⚡</span> EV Premium
+                                        </span>
+                                        <span className="text-cyan-400 font-semibold">+₹20/hr</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="h-px bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
 
                             <div className="space-y-4 px-1">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Subtotal</span>
-                                    <span className="text-slate-300">₹{subtotal}</span>
+                                    <span className="text-slate-500">Base Rate</span>
+                                    <span className="text-slate-300">₹{basePrice}</span>
                                 </div>
+                                {slotType === "EV" && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500 flex items-center gap-2">
+                                            <span className="text-cyan-400">⚡</span> EV Premium
+                                        </span>
+                                        <span className="text-cyan-400 font-semibold">+₹{evPremium}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Service Fee</span>
                                     <span className="text-slate-300">₹{serviceFee}</span>
                                 </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-500">GST (18%)</span>
+                                    <span className="text-slate-300">₹{gst}</span>
+                                </div>
                                 <div className="flex justify-between items-end pt-2">
                                     <div>
                                         <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Total Amount</span>
-                                        <div className="text-3xl font-black text-cyan-400 tabular-nums">₹{total}</div>
+                                        <div className="text-3xl font-black text-white tabular-nums">₹{total}</div>
                                     </div>
-                                    <div className="text-[10px] text-slate-600 italic">Incl. all taxes</div>
+                                    <div className="text-[10px] text-slate-600 italic">Incl. GST & service fee</div>
                                 </div>
                             </div>
                         </div>
@@ -613,15 +704,11 @@ function CheckoutContent({
 
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
-                                Checkout
-                                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-widest border border-white/5">
-                                    Secure
+                                CHECKOUT
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase tracking-widest border border-indigo-500/20">
+                                    SECURE
                                 </span>
                             </h2>
-                            <div className="flex items-center gap-2 text-slate-500 text-xs font-medium">
-                                <ShieldCheck size={14} className="text-emerald-500" />
-                                SSL Encrypted
-                            </div>
                         </div>
 
                         <form onSubmit={handlePayment} className="space-y-8">
@@ -634,7 +721,7 @@ function CheckoutContent({
                                 <div className="grid md:grid-cols-2 gap-5 relative">
                                     {isLoadingProfile && (
                                         <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-2xl border border-white/5">
-                                            <div className="w-8 h-8 rounded-full border-2 border-cyan-500/20 border-t-cyan-500 animate-spin" />
+                                            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
                                         </div>
                                     )}
                                     <div className="space-y-2">
@@ -643,17 +730,25 @@ function CheckoutContent({
                                             value={licensePlate}
                                             onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
                                             placeholder="TN-01-AB-1234 (Optional for Test)"
-                                            className="h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all uppercase font-mono tracking-widest text-lg"
+                                            disabled={!!vehiclePlate}
+                                            className={`h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all uppercase font-mono tracking-widest text-lg ${vehiclePlate ? 'opacity-70 cursor-not-allowed' : ''}`}
                                         />
+                                        {vehiclePlate && (
+                                            <p className="text-[10px] text-slate-500 italic">Pre-selected from checkout</p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-xs font-bold text-slate-400 ml-1">Vehicle Model</Label>
                                         <Input
-                                            value={vehicleModel}
-                                            onChange={(e) => setVehicleModel(e.target.value)}
+                                            value={localVehicleModel}
+                                            onChange={(e) => setLocalVehicleModel(e.target.value)}
                                             placeholder="e.g. Honda City"
-                                            className="h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium"
+                                            disabled={!!vehicleModel}
+                                            className={`h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium ${vehicleModel ? 'opacity-70 cursor-not-allowed' : ''}`}
                                         />
+                                        {vehicleModel && (
+                                            <p className="text-[10px] text-slate-500 italic">Pre-selected from checkout</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -670,34 +765,34 @@ function CheckoutContent({
                                         <button 
                                             type="button"
                                             onClick={() => setSelectedMethod("upi")}
-                                            className="p-5 bg-slate-900/40 hover:bg-[#06b6d4]/10 border border-white/5 hover:border-[#06b6d4]/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-2 focus:ring-[#06b6d4] focus:outline-none"
+                                            className="p-5 bg-slate-900/40 hover:bg-indigo-500/10 border border-white/5 hover:border-indigo-500/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                         >
-                                            <div className="w-12 h-12 rounded-full bg-[#06b6d4]/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
-                                                <Smartphone className="w-6 h-6 text-[#06b6d4]" />
+                                            <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                                                <Smartphone className="w-6 h-6 text-indigo-400" />
                                             </div>
-                                            <span className="text-sm font-bold text-white group-hover:text-[#06b6d4] transition-colors">UPI / GPay</span>
+                                            <span className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">UPI / GPay</span>
                                         </button>
 
                                         <button 
                                             type="button"
                                             onClick={() => setSelectedMethod("card")}
-                                            className="p-5 bg-slate-900/40 hover:bg-blue-500/10 border border-white/5 hover:border-blue-500/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                            className="p-5 bg-slate-900/40 hover:bg-slate-700/50 border border-white/5 hover:border-slate-600/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(148,163,184,0.15)] focus:ring-2 focus:ring-slate-500 focus:outline-none"
                                         >
-                                            <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
-                                                <CreditCard className="w-6 h-6 text-blue-400" />
+                                            <div className="w-12 h-12 rounded-full bg-slate-700/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                                                <CreditCard className="w-6 h-6 text-slate-400" />
                                             </div>
-                                            <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">Credit Card</span>
+                                            <span className="text-sm font-bold text-white group-hover:text-slate-300 transition-colors">Credit Card</span>
                                         </button>
 
                                         <button 
                                             type="button"
                                             onClick={() => setSelectedMethod("netbanking")}
-                                            className="p-5 bg-slate-900/40 hover:bg-purple-500/10 border border-white/5 hover:border-purple-500/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                            className="p-5 bg-slate-900/40 hover:bg-slate-700/50 border border-white/5 hover:border-slate-600/50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group shadow-sm hover:shadow-[0_0_20px_rgba(148,163,184,0.15)] focus:ring-2 focus:ring-slate-500 focus:outline-none"
                                         >
-                                            <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
-                                                <Building2 className="w-6 h-6 text-purple-400" />
+                                            <div className="w-12 h-12 rounded-full bg-slate-700/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                                                <Building2 className="w-6 h-6 text-slate-400" />
                                             </div>
-                                            <span className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors">Net Banking</span>
+                                            <span className="text-sm font-bold text-white group-hover:text-slate-300 transition-colors">Net Banking</span>
                                         </button>
                                     </div>
                                 ) : (
@@ -705,9 +800,9 @@ function CheckoutContent({
                                         <div className="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-white/5 backdrop-blur-sm">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
-                                                    {selectedMethod === "card" ? <CreditCard className="w-4 h-4 text-blue-400" /> : 
-                                                     selectedMethod === "upi" ? <Smartphone className="w-4 h-4 text-[#06b6d4]" /> : 
-                                                     <Building2 className="w-4 h-4 text-purple-400" />}
+                                                    {selectedMethod === "card" ? <CreditCard className="w-4 h-4 text-slate-400" /> : 
+                                                     selectedMethod === "upi" ? <Smartphone className="w-4 h-4 text-indigo-400" /> : 
+                                                     <Building2 className="w-4 h-4 text-slate-400" />}
                                                 </div>
                                                 <span className="text-sm font-bold text-white">
                                                     {selectedMethod === "card" ? "Credit / Debit Card" : 
@@ -724,28 +819,28 @@ function CheckoutContent({
                                         </div>
 
                                         {selectedMethod === "upi" ? (
-                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-[#06b6d4]/30 relative overflow-hidden group">
+                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-indigo-500/30 relative overflow-hidden group">
                                                 <div className="space-y-5 relative z-10">
                                                     <div className="space-y-2">
                                                         <Label className="text-xs font-bold text-slate-400 ml-1">Enter your UPI ID</Label>
                                                         <Input 
                                                             placeholder="example@upi" 
-                                                            className="h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-[#06b6d4]/50 focus:ring-1 focus:ring-[#06b6d4]/50 transition-all font-mono tracking-wider"
+                                                            className="h-12 bg-[#0B0E14] border-slate-800 text-white placeholder:text-slate-600 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-mono tracking-wider"
                                                             required
                                                         />
                                                     </div>
-                                                    <div className="bg-[#06b6d4]/10 border border-[#06b6d4]/20 p-3 rounded-lg flex items-start gap-3">
-                                                        <Smartphone className="w-5 h-5 text-[#06b6d4] shrink-0 mt-0.5" />
-                                                        <p className="text-xs text-[#06b6d4]/80 leading-relaxed font-medium">You will receive a secure payment request on your registered UPI application (GPay, PhonePe, Paytm).</p>
+                                                    <div className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-lg flex items-start gap-3">
+                                                        <Smartphone className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                                                        <p className="text-xs text-indigo-400/80 leading-relaxed font-medium">You will receive a secure payment request on your registered UPI application (GPay, PhonePe, Paytm).</p>
                                                     </div>
                                                 </div>
                                             </div>
                                         ) : selectedMethod === "netbanking" ? (
-                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-purple-500/30 relative overflow-hidden group">
+                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-slate-600/30 relative overflow-hidden group">
                                                 <div className="space-y-5 relative z-10">
                                                     <div className="space-y-2">
                                                         <Label className="text-xs font-bold text-slate-400 ml-1">Select your Bank</Label>
-                                                        <select className="w-full h-12 bg-[#0B0E14] border border-slate-800 rounded-lg px-4 text-slate-200 focus:border-purple-500/50 outline-none hover:border-slate-700 transition-colors cursor-pointer appearance-none font-medium">
+                                                        <select className="w-full h-12 bg-[#0B0E14] border border-slate-800 rounded-lg px-4 text-slate-200 focus:border-slate-600/50 outline-none hover:border-slate-700 transition-colors cursor-pointer appearance-none font-medium">
                                                             <option>HDFC Bank</option>
                                                             <option>State Bank of India</option>
                                                             <option>ICICI Bank</option>
@@ -753,15 +848,15 @@ function CheckoutContent({
                                                             <option>Kotak Mahindra Bank</option>
                                                         </select>
                                                     </div>
-                                                    <div className="bg-purple-500/10 border border-purple-500/20 p-3 rounded-lg flex items-start gap-3">
-                                                        <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                                                        <p className="text-xs text-purple-400/80 leading-relaxed font-medium">You will be securely redirected to your bank's portal to authorize this payment.</p>
+                                                    <div className="bg-slate-700/10 border border-slate-600/20 p-3 rounded-lg flex items-start gap-3">
+                                                        <ShieldCheck className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+                                                        <p className="text-xs text-slate-400/80 leading-relaxed font-medium">You will be securely redirected to your bank's portal to authorize this payment.</p>
                                                     </div>
                                                 </div>
                                             </div>
                                         ) : isMock ? (
-                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-blue-500/30 relative overflow-hidden group">
-                                                <div className="absolute top-2 right-2 bg-blue-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-widest z-10">SANDBOX ENV</div>
+                                            <div className="bg-slate-900/50 p-6 rounded-xl border border-dashed border-slate-600/30 relative overflow-hidden group">
+                                                <div className="absolute top-2 right-2 bg-slate-700/90 text-black text-[10px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-widest z-10">SANDBOX ENV</div>
                                                 <div className="space-y-4 opacity-75 grayscale transition-all group-hover:grayscale-0">
                                                     <div className="space-y-2">
                                                         <Label className="text-xs text-slate-500">Card Number</Label>

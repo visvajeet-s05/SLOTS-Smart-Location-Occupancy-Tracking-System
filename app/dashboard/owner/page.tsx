@@ -20,18 +20,10 @@ import {
   ArrowDownRight,
   Activity,
   Zap,
-  History
+  History,
+  MapPin
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
 import { useOwnerWS } from "@/components/ws/OwnerWebSocketProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,21 +50,6 @@ type Slot = {
   status: SlotStatus;
 };
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 }
-};
-
 export default function OwnerDashboardPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -90,8 +67,12 @@ export default function OwnerDashboardPage() {
     ddnsDomain: string | null;
   }>({ id: null, isOnline: false, lastHeartbeat: null, ddnsDomain: null });
   const [activityLog, setActivityLog] = useState<{ id: string; msg: string; time: string; type: 'entry' | 'exit' }[]>([]);
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [msPulse, setMsPulse] = useState(0);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedView, setSelectedView] = useState<"today" | "week">("today");
+  const [apiHealthy, setApiHealthy] = useState(true);
   const { isConnected: wsConnected, lastMessage } = useOwnerWS();
 
   const isFetchingRef = useRef(false);
@@ -99,7 +80,8 @@ export default function OwnerDashboardPage() {
 
   const ownerEmail = (session?.user?.email || "").toLowerCase();
   const parkingLotId = session?.user?.parkingLotId || OWNER_PARKING_MAPPING[ownerEmail];
-  const lotDetails = (parkingLotId && PARKING_LOT_DETAILS[parkingLotId]) || { name: "Your Parking Lot", location: "Unknown Location", price: 0 };
+  const displayLotKey = OWNER_PARKING_MAPPING[ownerEmail] || session?.user?.parkingLotId;
+  const lotDetails = (displayLotKey && PARKING_LOT_DETAILS[displayLotKey]) || { name: session?.user?.name || "Your Parking Lot", location: "Unknown Location", price: 0 };
 
   useEffect(() => {
     // High-frequency UI tick (every 10ms) for millisecond feel
@@ -125,11 +107,23 @@ export default function OwnerDashboardPage() {
 
   const fetchStats = useCallback(() => {
     if (!parkingLotId) return;
-    
+
+    fetch(`/api/owner/bookings`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((bookings) => {
+        setRecentBookings(Array.isArray(bookings) ? bookings.slice(0, 3) : []);
+      })
+      .catch(() => setRecentBookings([]));
+
     fetch(`/api/parking/${parkingLotId}/slots`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) setApiHealthy(false);
+        return res.json();
+      })
       .then((data) => {
+        setApiHealthy(true);
         const slots: Slot[] = data.slots || [];
+        setSlots(slots);
         setStats({
           total: slots.length,
           available: slots.filter((s) => s.status === "AVAILABLE").length,
@@ -138,63 +132,59 @@ export default function OwnerDashboardPage() {
           disabled: slots.filter((s) => s.status === "DISABLED").length,
         });
 
-        // Fetch parking lot details for edge node info
         fetch(`/api/parking`)
-      .then((res) => {
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            throw new Error("Authentication failed or unauthorized access.");
-          } else if (res.status === 404) {
-            throw new Error("Parking API endpoint not found.");
-          }
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-           throw new Error("API returned non-JSON response");
-        }
-        return res.json();
-      })
-      .then((lotData) => {
-        if (!lotData.parkingAreas) {
-           console.warn("⚠️ No parking areas returned from API");
-           return;
-        }
-        
-        // Case-insensitive ID matching with trimming to handle database inconsistencies
-        const pid = (parkingLotId || "").toString().trim().toUpperCase();
-        
-        const currentLot = lotData.parkingAreas?.find((l: any) => 
-           l.id?.toString().trim().toUpperCase() === pid
-        );
-        
-        if (currentLot) {
-          console.log(`✅ Found lot: ${currentLot.name} (Online: ${currentLot.isOnline})`);
-          setEdgeNode({
-            id: currentLot.edgeNodeId,
-            isOnline: currentLot.isOnline || false,
-            lastHeartbeat: currentLot.lastHeartbeat,
-            ddnsDomain: currentLot.ddnsDomain
+          .then((res) => {
+            if (!res.ok) {
+              if (res.status === 401 || res.status === 403) {
+                throw new Error("Authentication failed or unauthorized access.");
+              } else if (res.status === 404) {
+                throw new Error("Parking API endpoint not found.");
+              }
+              throw new Error(`HTTP ${res.status}`);
+            }
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+              throw new Error("API returned non-JSON response");
+            }
+            return res.json();
+          })
+          .then((lotData) => {
+            if (!lotData.parkingAreas) {
+              console.warn("⚠️ No parking areas returned from API");
+              return;
+            }
+
+            const pid = (parkingLotId || "").toString().trim().toUpperCase();
+            const currentLot = lotData.parkingAreas?.find((l: any) =>
+              l.id?.toString().trim().toUpperCase() === pid
+            );
+
+            if (currentLot) {
+              console.log(`✅ Found lot: ${currentLot.name} (Online: ${currentLot.isOnline})`);
+              setEdgeNode({
+                id: currentLot.edgeNodeId,
+                isOnline: currentLot.isOnline || false,
+                lastHeartbeat: currentLot.lastHeartbeat,
+                ddnsDomain: currentLot.ddnsDomain
+              });
+            } else {
+              console.warn(`⚠️ Lot ${pid} not found in ${lotData.parkingAreas.length} results`);
+              if (lotData.parkingAreas.length === 1) {
+                const onlyLot = lotData.parkingAreas[0];
+                setEdgeNode({
+                  id: onlyLot.edgeNodeId,
+                  isOnline: onlyLot.isOnline || false,
+                  lastHeartbeat: onlyLot.lastHeartbeat,
+                  ddnsDomain: onlyLot.ddnsDomain
+                });
+              }
+            }
+          })
+          .catch((err) => {
+            console.error("❌ Failed to fetch detailed status:", err);
           });
-        } else {
-          console.warn(`⚠️ Lot ${pid} not found in ${lotData.parkingAreas.length} results`);
-          // Try a partial match or first lot if only one exists for this owner
-          if (lotData.parkingAreas.length === 1) {
-             const onlyLot = lotData.parkingAreas[0];
-             setEdgeNode({
-               id: onlyLot.edgeNodeId,
-               isOnline: onlyLot.isOnline || false,
-               lastHeartbeat: onlyLot.lastHeartbeat,
-               ddnsDomain: onlyLot.ddnsDomain
-             });
-          }
-        }
       })
-      .catch((err) => {
-        console.error("❌ Failed to fetch detailed status:", err);
-      });
-    })
-    .catch((err) => console.error("Failed to fetch slots stats:", err));
+      .catch((err) => console.error("Failed to fetch slots stats:", err));
   }, [parkingLotId]);
 
   useEffect(() => {
@@ -210,7 +200,7 @@ export default function OwnerDashboardPage() {
     const newLog = {
       id: Math.random().toString(36).substr(2, 9),
       msg: `Slot ${lastMessage.slotNumber || lastMessage.slotId} ${lastMessage.status === 'OCCUPIED' ? 'Occupied' : 'Cleared'}`,
-      time: new Date().toLocaleTimeString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       type: lastMessage.status === 'OCCUPIED' ? 'entry' as const : 'exit' as const
     };
     setActivityLog(prev => [newLog, ...prev].slice(0, 10));
@@ -225,6 +215,28 @@ export default function OwnerDashboardPage() {
       if (newKey && newStats[newKey] !== undefined) newStats[newKey]++;
       return newStats;
     });
+
+    // Update slots array for real-time chart
+    if (lastMessage.slotId || lastMessage.slotNumber) {
+      setSlots(prevSlots => {
+        const newSlots = prevSlots.map(slot => {
+          const matches = lastMessage.slotId 
+            ? slot.id === lastMessage.slotId
+            : slot.slotNumber === lastMessage.slotNumber;
+          if (matches) {
+            return {
+              ...slot,
+              status: lastMessage.status as SlotStatus,
+              aiConfidence: lastMessage.confidence,
+              updatedBy: lastMessage.updatedBy,
+            };
+          }
+          return slot;
+        });
+        return newSlots;
+      });
+    }
+
   }, [lastMessage]);
 
   const occupancyPercentage = useMemo(() => {
@@ -232,317 +244,371 @@ export default function OwnerDashboardPage() {
     return Math.round(((stats.occupied + stats.reserved) / stats.total) * 100);
   }, [stats]);
 
+  const revenueToday = useMemo(() => recentBookings.reduce((sum, booking) => sum + Number(booking.amount || 0), 0), [recentBookings]);
+  const isLiveFeedHealthy = wsConnected && edgeNode.isOnline;
+  const formattedTime = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   return (
-    <div className="min-h-screen bg-[#030303] text-white selection:bg-purple-500/30">
-      {/* Decorative Background Elements */}
+    <div className="min-h-screen" style={{ background: "var(--bg-void)", color: "var(--text-primary)" }}>
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 rounded-full blur-[120px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[120px]" style={{ background: "var(--accent-glow)" }} />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full blur-[120px]" style={{ background: "rgba(108, 92, 231, 0.08)" }} />
       </div>
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="relative max-w-7xl mx-auto px-6 pt-0 pb-12 space-y-8"
-      >
-
-        {/* Header Section */}
-        <motion.div
-          variants={itemVariants}
-          className="flex flex-col md:flex-row md:items-end justify-between gap-6"
-        >
-          <div className="space-y-1">
-            <div className="h-5"></div>
-            <h1 className="text-4xl font-bold tracking-tight">
-              Hello, <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">{session?.user?.name || "Partner"}</span>
+      <div className="max-w-[1440px] mx-auto px-6 lg:px-8 py-8 space-y-8 relative">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6" style={{ borderColor: "var(--border-glass)" }}>
+          <div>
+            <h1 className="text-[clamp(2.3rem,4vw,4rem)] font-black leading-none tracking-[-0.04em]">
+              Hello, <span className="text-transparent bg-clip-text" style={{ backgroundImage: "linear-gradient(90deg, var(--accent), #9f8cff)" }}>{session?.user?.name || "Partner"}</span>
             </h1>
-            <p className="text-gray-400 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Monitoring <span className="text-gray-200 font-medium">{lotDetails.name}</span> • {lotDetails.location}
-            </p>
-          </div>
-
-          <div className="flex flex-col items-end gap-2">
-            <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Local Time</p>
-                <p className="text-lg font-mono font-bold tracking-tight flex items-baseline gap-1">
-                  {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  <span className="text-[10px] text-purple-400 opacity-70">.{String(msPulse).padStart(3, '0')}</span>
-                </p>
-              </div>
-              <div className="w-px h-8 bg-white/10" />
-              <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20 text-xs font-medium">
-                <Signal size={14} />
-                {wsConnected ? "System Live" : "Connecting..."}
-              </div>
+            <div className="flex items-center gap-2 mt-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+              <span className="h-2 w-2 rounded-full animate-pulse" style={{ background: "var(--status-live)" }}></span>
+              <span>Monitoring: <strong style={{ color: "var(--text-primary)" }}>{lotDetails.name}</strong></span>
+              <span style={{ color: "var(--border-glass)" }}>•</span>
+              <span>{lotDetails.location}</span>
             </div>
           </div>
-        </motion.div>
 
-        {/* Primary Stats Grid */}
-        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <StatCard
-            title="Total Capacity"
-            value={stats.total}
-            icon={<Grid3X3 className="text-blue-400" />}
-            trend="+0% change"
-            color="blue"
-          />
-          <StatCard
-            title="Slots Available"
-            value={stats.available}
-            icon={<Car className="text-green-400" />}
-            trend="Instant Refresh"
-            color="green"
-          />
-          <StatCard
-            title="Live Occupancy"
-            value={stats.occupied}
-            icon={<Activity className="text-red-400" />}
-            trend={`${occupancyPercentage}% full`}
-            color="red"
-          />
-          <StatCard
-            title="Revenue Trend"
-            value={`₹${stats.occupied * (lotDetails.price ?? 0)}`}
-            icon={<TrendingUp className="text-purple-400" />}
-            trend="Estimated Today"
-            color="purple"
-          />
-        </motion.div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border font-mono text-xs" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-secondary)" }}>
+              <span style={{ color: "var(--text-muted)" }}>LOCAL TIME:</span>
+              <span style={{ color: "var(--text-primary)" }} className="font-bold">{formattedTime}</span>
+            </div>
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono text-xs font-semibold border ${isLiveFeedHealthy ? "" : ""}`} style={{
+              background: isLiveFeedHealthy ? "rgba(108, 92, 231, 0.08)" : "rgba(245, 158, 11, 0.08)",
+              borderColor: isLiveFeedHealthy ? "rgba(108, 92, 231, 0.24)" : "rgba(245, 158, 11, 0.24)",
+              color: isLiveFeedHealthy ? "var(--accent-hover)" : "#fbbf24"
+            }}>
+              <span className={`w-2 h-2 rounded-full ${isLiveFeedHealthy ? "animate-pulse" : "animate-pulse"}`} style={{ background: isLiveFeedHealthy ? "var(--status-live)" : "#fbbf24" }}></span>
+              <span>{isLiveFeedHealthy ? "LIVE UPDATES" : "DEGRADED FEED"}</span>
+            </div>
+          </div>
+        </div>
 
-        {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Left: Occupancy Chart */}
-          <motion.div
-            variants={itemVariants}
-            className="lg:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl"
-          >
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-xl font-bold">Occupancy Analytics</h3>
-                <p className="text-sm text-gray-400">Real-time usage trends for the last 24 hours</p>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20">Today</Badge>
-                <Badge variant="outline" className="hover:bg-white/5 cursor-pointer">Week</Badge>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="p-5 rounded-[22px] flex flex-col justify-between space-y-3 border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+            <div className="flex items-center justify-between" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-xs font-mono uppercase tracking-wider">Total Capacity</span>
+              <div className="p-2.5 rounded-xl border" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>
+                <Grid3X3 className="w-4 h-4" />
               </div>
             </div>
-
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={MOCK_CHART_DATA}>
-                  <defs>
-                    <linearGradient id="colorOccupancy" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff08" />
-                  <XAxis
-                    dataKey="time"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6b7280', fontSize: 12 }}
-                  />
-                  <YAxis
-                    hide
-                    domain={[0, 100]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid #ffffff10',
-                      borderRadius: '12px',
-                      color: '#fff'
-                    }}
-                    itemStyle={{ color: '#818cf8' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="occupancy"
-                    stroke="#818cf8"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorOccupancy)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-
-          {/* Right: Quick Actions */}
-          <motion.div variants={itemVariants} className="space-y-6">
             <div>
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <ShieldCheck className="text-purple-400" size={20} />
-                Control Center
-              </h3>
-              <div className="grid gap-4">
-                <ActionCard
-                  href="/dashboard/owner/camera"
-                  title="Live Surveillance"
-                  description="Access 4K AI-powered camera feeds"
-                  icon={<Camera />}
-                  gradient="from-blue-500/20 to-cyan-500/20"
-                />
-                <ActionCard
-                  href={parkingLotId ? `/dashboard/owner/parking-lots/${parkingLotId}/slots` : "/dashboard/owner/parking-lots/slots"}
-                  title="Slot Management"
-                  description="Override status and configure limits"
-                  icon={<Grid3X3 />}
-                  gradient="from-purple-500/20 to-pink-500/20"
-                />
+              <div className="text-[2.2rem] font-black font-mono leading-none" style={{ color: "var(--text-primary)" }}>{stats.total}</div>
+              <span className="text-[11px] font-mono mt-2 block" style={{ color: "var(--text-muted)" }}>Maximum Facility Slots</span>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-[22px] flex flex-col justify-between space-y-3 border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+            <div className="flex items-center justify-between" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-xs font-mono uppercase tracking-wider">Slots Available</span>
+              <div className="p-2.5 rounded-xl" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}>
+                <Car className="w-4 h-4" />
               </div>
             </div>
+            <div>
+              <div className="text-[2.2rem] font-black font-mono leading-none" style={{ color: "#10b981" }}>{stats.available}</div>
+              <span className="text-[11px] font-mono mt-2 block" style={{ color: "#34d399" }}>
+                {stats.total > 0 ? `${Math.round((stats.available / stats.total) * 100)}% Free` : '0% Free'} • Instant Refresh
+              </span>
+            </div>
+          </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <History className="text-blue-400" size={20} />
-                  Live Activity
-                </h3>
-                <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-                  <AnimatePresence mode="popLayout">
-                    {activityLog.length === 0 ? (
-                      <p className="text-xs text-center text-gray-500 py-8">Waiting for AI events...</p>
-                    ) : (
-                      activityLog.map((log) => (
-                        <motion.div
-                          key={log.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          className="flex items-start gap-3 p-2 rounded-xl bg-white/5 border border-white/5"
-                        >
-                          <div className={`mt-1 p-1 rounded-md ${log.type === 'entry' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                            <Zap size={10} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-200 truncate">{log.msg}</p>
-                            <p className="text-[10px] text-gray-500">{log.time}</p>
-                          </div>
-                        </motion.div>
-                      ))
-                    )}
-                  </AnimatePresence>
-                </div>
+          <div className="p-5 rounded-[22px] flex flex-col justify-between space-y-3 border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+            <div className="flex items-center justify-between" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-xs font-mono uppercase tracking-wider">Live Occupancy</span>
+              <div className="p-2.5 rounded-xl" style={{ background: "rgba(108, 92, 231, 0.1)", color: "var(--accent)" }}>
+                <Activity className="w-4 h-4" />
               </div>
+            </div>
+            <div>
+              <div className="text-[2.2rem] font-black font-mono leading-none" style={{ color: "var(--text-primary)" }}>{stats.occupied} <span className="text-lg font-normal align-middle" style={{ color: "var(--text-muted)" }}>/ {stats.total}</span></div>
+              <span className="text-[11px] font-mono mt-2 block" style={{ color: "var(--text-muted)" }}>{occupancyPercentage}% Peak Load</span>
+            </div>
+          </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Signal className="text-green-400" size={20} />
-                System Status
-              </h3>
-              <div className="space-y-4">
-                <StatusRow label="AI Edge Node" status={edgeNode.isOnline ? "active" : "error"} />
-                <StatusRow label="Camera Processing" status={edgeNode.isOnline ? "active" : "warning"} />
-                <StatusRow label="WebSocket Gateway" status={wsConnected ? "active" : "warning"} />
-                <StatusRow label="Database Sync" status="active" />
-                <div className="flex items-center justify-between group">
-                  <span className="text-sm text-gray-400">Node ID</span>
-                  <span className="text-[10px] font-mono text-purple-400">{edgeNode.id || "N/A"}</span>
-                </div>
-                {edgeNode.ddnsDomain && (
-                  <div className="flex items-center justify-between group">
-                    <span className="text-sm text-gray-400">Node Domain</span>
-                    <span className="text-[10px] font-mono text-cyan-400">{edgeNode.ddnsDomain}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between group">
-                  <span className="text-sm text-gray-400">Sync Frequency</span>
+          <div className="p-5 rounded-[22px] flex flex-col justify-between space-y-3 border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+            <div className="flex items-center justify-between" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-xs font-mono uppercase tracking-wider">Revenue Today</span>
+              <div className="p-2.5 rounded-xl" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#fbbf24" }}>
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <div className="text-[2.2rem] font-black font-mono leading-none" style={{ color: "var(--text-primary)" }}>₹{revenueToday.toLocaleString()}</div>
+              <span className="text-[11px] font-mono mt-2 block" style={{ color: "var(--text-muted)" }}>Booked Revenue Today</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-8 space-y-8">
+            <div className="p-6 rounded-[28px] border space-y-6" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+              <div className="flex items-center justify-between">
+                <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-green-400">Event-Based (1s)</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <h3 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Occupancy Analytics</h3>
+                    <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded border ${
+                      wsConnected
+                        ? "bg-green-500/10 border-green-500/20 text-green-400"
+                        : "bg-red-500/10 border-red-500/20 text-red-400"
+                    }`}>
+                      {wsConnected ? "LIVE" : "OFFLINE"}
+                    </span>
                   </div>
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    {selectedView === "today"
+                      ? "Real-time slot status distribution"
+                      : "Occupancy trend over 24 hours"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 p-1 rounded-xl border text-xs font-mono" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
+                  <button
+                    onClick={() => setSelectedView("today")}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                      selectedView === "today"
+                        ? "shadow-lg shadow-cyan-500/20"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                    style={{ background: selectedView === "today" ? "var(--accent)" : "transparent", color: selectedView === "today" ? "var(--text-primary)" : "var(--text-secondary)" }}
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => setSelectedView("week")}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                      selectedView === "week"
+                        ? "shadow-lg shadow-cyan-500/20"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                    style={{ background: selectedView === "week" ? "var(--accent)" : "transparent", color: selectedView === "week" ? "var(--text-primary)" : "var(--text-secondary)" }}
+                  >
+                    Week
+                  </button>
                 </div>
               </div>
-              <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between text-xs text-gray-500 lowercase tracking-widest">
-                <span>Last full backup</span>
-                <span>2 hours ago</span>
+
+              {selectedView === "today" ? (
+                <div className="h-64 w-full relative">
+                  <div className="flex items-end h-48 gap-3 mb-4">
+                    {[
+                      { label: "Occupied", value: stats.occupied, color: "#EF4444" },
+                      { label: "Available", value: stats.available, color: "#10B981" },
+                      { label: "Reserved", value: stats.reserved, color: "#F59E0B" },
+                      { label: "Disabled", value: stats.disabled, color: "#6B7280" },
+                    ].map((item) => {
+                      const percentage = stats.total > 0 ? (item.value / stats.total) * 100 : 0;
+                      return (
+                        <div key={item.label} className="flex-1 flex flex-col items-center">
+                          <div
+                            className="w-full rounded-lg transition-all duration-500 relative group cursor-default"
+                            style={{
+                              height: `${Math.max(percentage, 3)}%`,
+                              background: item.color,
+                              minHeight: "4px",
+                            }}
+                          >
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {item.value}
+                            </span>
+                          </div>
+                          <span className="text-xs mt-2 font-mono" style={{ color: item.color }}>{item.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono pt-2 border-t" style={{ color: "var(--text-muted)", borderColor: "var(--border-glass)" }}>
+                    <span>Occupied</span>
+                    <span>Available</span>
+                    <span>Reserved</span>
+                    <span>Disabled</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-72 w-full relative pt-4">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="chartGradientWeek" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.02" />
+                      </linearGradient>
+                    </defs>
+                    <line x1="0" y1="150" x2="500" y2="150" stroke="var(--border-glass)" strokeWidth="1" />
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <line key={i} x1={i * 100} y1="0" x2={i * 100} y2="150" stroke="var(--border-glass)" strokeWidth="1" opacity="0.3" />
+                    ))}
+                    <path
+                      d={`M 0 ${150 - (MOCK_CHART_DATA[0].occupancy * 1.5)} ${MOCK_CHART_DATA.slice(1).map((d, i) =>
+                        `L ${(i + 1) * (500 / (MOCK_CHART_DATA.length - 1))} ${150 - (d.occupancy * 1.5)}`
+                      ).join(" ")} L 500 150 L 0 150 Z`}
+                      fill="url(#chartGradientWeek)"
+                      stroke="none"
+                    />
+                    <path
+                      d={`M 0 ${150 - (MOCK_CHART_DATA[0].occupancy * 1.5)} ${MOCK_CHART_DATA.slice(1).map((d, i) =>
+                        `L ${(i + 1) * (500 / (MOCK_CHART_DATA.length - 1))} ${150 - (d.occupancy * 1.5)}`
+                      ).join(" ")}`}
+                      fill="none"
+                      stroke="var(--accent)"
+                      strokeWidth="3"
+                      strokeLinejoin="round"
+                    />
+                    {MOCK_CHART_DATA.map((d, i) => {
+                      const x = i * (500 / (MOCK_CHART_DATA.length - 1));
+                      const y = 150 - (d.occupancy * 1.5);
+                      return (
+                        <circle key={i} cx={x} cy={y} r="3" fill="var(--accent)" />
+                      );
+                    })}
+                  </svg>
+                  <div className="flex justify-between text-[10px] font-mono pt-3 border-t" style={{ color: "var(--text-muted)", borderColor: "var(--border-glass)" }}>
+                    {MOCK_CHART_DATA.map((d) => <span key={d.time}>{d.time}</span>)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 rounded-[28px] border space-y-4" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Recent Bookings</h3>
+                <Link href="/dashboard/owner/bookings">
+                  <button className="text-xs font-mono" style={{ color: "var(--accent-hover)" }}>View All →</button>
+                </Link>
+              </div>
+
+              <div className="divide-y divide-white/10">
+                {recentBookings.length === 0 ? (
+                  <div className="py-10 text-center" style={{ color: "var(--text-muted)" }}>No recent bookings yet.</div>
+                ) : recentBookings.map((booking) => (
+                  <div key={booking.id} className="py-3.5 flex items-center justify-between px-3 rounded-xl transition-colors hover:opacity-90" style={{ background: "transparent" }}>
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-1 rounded-lg border text-xs font-bold font-mono" style={{ background: "rgba(108, 92, 231, 0.1)", borderColor: "rgba(108, 92, 231, 0.2)", color: "var(--accent-hover)" }}>{booking.slot?.slotNumber ? `S${booking.slot.slotNumber}` : "LOT"}</span>
+                      <div>
+                        <p className="text-sm font-semibold font-mono" style={{ color: "var(--text-primary)" }}>{booking.user_booking_customerIdTouser?.name || booking.customerId}</p>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{new Date(booking.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold font-mono" style={{ color: "#34d399" }}>₹{Number(booking.amount || 0)}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </motion.div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon, trend, color }: any) {
-  const colorMap: any = {
-    blue: "border-blue-500/20 bg-blue-500/5 hover:border-blue-500/40",
-    green: "border-green-500/20 bg-green-500/5 hover:border-green-500/40",
-    red: "border-red-500/20 bg-red-500/5 hover:border-red-500/40",
-    purple: "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40",
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ y: -5 }}
-      className={`p-6 rounded-3xl border backdrop-blur-sm transition-all duration-300 ${colorMap[color]}`}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="p-3 bg-white/5 rounded-2xl">
-          {icon}
-        </div>
-        <ArrowUpRight className="text-gray-600" size={20} />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-gray-400 mb-1">{title}</p>
-        <h4 className="text-3xl font-bold tracking-tight">{value}</h4>
-        <p className="text-xs text-gray-500 mt-2 flex items-center gap-1 uppercase tracking-wider">
-          <Clock size={12} /> {trend}
-        </p>
-      </div>
-    </motion.div>
-  );
-}
-
-function ActionCard({ href, title, description, icon, gradient }: any) {
-  return (
-    <Link href={href}>
-      <motion.div
-        whileHover={{ x: 5 }}
-        whileTap={{ scale: 0.98 }}
-        className={`group relative p-6 bg-gradient-to-br ${gradient} border border-white/10 rounded-3xl transition-all hover:border-white/20`}
-      >
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <h4 className="text-lg font-bold group-hover:text-purple-300 transition-colors uppercase tracking-tight">{title}</h4>
-            <p className="text-sm text-gray-400">{description}</p>
           </div>
-          <div className="p-3 bg-white/10 rounded-xl group-hover:scale-110 transition-transform">
-            {icon}
+
+          <div className="lg:col-span-4 space-y-6">
+            <div className="p-6 rounded-[28px] border space-y-4" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+              <h3 className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Control Center</h3>
+
+              <Link href="/dashboard/owner/camera">
+                <div className="p-4 rounded-xl border space-y-2 transition-colors cursor-pointer" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>LIVE SURVEILLANCE</h4>
+                    <span className="p-1.5 rounded-lg border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>📷</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Access 4K AI-powered camera feeds</p>
+                  <button className="text-xs font-mono pt-1 block" style={{ color: "var(--accent-hover)" }}>OPEN CONTROLS ›</button>
+                </div>
+              </Link>
+
+              <Link href={parkingLotId ? `/dashboard/owner/parking-lots/${parkingLotId}/slots` : "/dashboard/owner/parking-lots/slots"}>
+                <div className="p-4 rounded-xl border space-y-2 transition-colors cursor-pointer" style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold font-mono" style={{ color: "var(--text-primary)" }}>SLOT MANAGEMENT</h4>
+                    <span className="p-1.5 rounded-lg border" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)", color: "var(--text-primary)" }}>🎛️</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Override status and configure limits</p>
+                  <button className="text-xs font-mono pt-1 block" style={{ color: "var(--accent-hover)" }}>OPEN CONTROLS ›</button>
+                </div>
+              </Link>
+            </div>
+
+            <div className="p-6 rounded-[28px] border space-y-4" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Live Activity</h3>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${wsConnected ? "animate-pulse" : ""}`} style={{ background: wsConnected ? "var(--status-live)" : "#f87171" }}></span>
+                    <span className="text-[10px] font-mono" style={{ color: wsConnected ? "#34d399" : "#f87171" }}>{wsConnected ? "LIVE" : "OFFLINE"}</span>
+                  </div>
+                </div>
+
+              <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+                <AnimatePresence mode="popLayout">
+                  {activityLog.length === 0 ? (
+                    <p className="text-xs text-center py-8" style={{ color: "var(--text-muted)" }}>{wsConnected ? "Waiting for AI events..." : "WebSocket disconnected - waiting for events..."}</p>
+                  ) : (
+                    activityLog.map((log) => (
+                      <motion.div
+                        key={log.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex items-start gap-3 p-2 rounded-xl border"
+                        style={{ background: "var(--bg-surface)", borderColor: "var(--border-glass)" }}
+                      >
+                        <div className="mt-1 p-1 rounded-md" style={{ background: log.type === 'entry' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)', color: log.type === 'entry' ? '#f87171' : '#34d399' }}>
+                          <Zap size={10} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>{log.msg}</p>
+                          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{log.time}</p>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-[28px] border space-y-4" style={{ background: "var(--bg-card)", borderColor: "var(--border-glass)" }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-mono font-bold" style={{ color: "var(--text-primary)" }}>System Status</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border" style={{ background: !edgeNode.isOnline ? "rgba(229, 72, 77, 0.08)" : "rgba(16, 185, 129, 0.08)", borderColor: !edgeNode.isOnline ? "rgba(229, 72, 77, 0.2)" : "rgba(16, 185, 129, 0.2)", color: !edgeNode.isOnline ? "#f87171" : "#34d399" }}>
+                  {!edgeNode.isOnline ? 'Attention Required' : 'All Systems Operational'}
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs font-mono">
+                <div className="flex justify-between items-center py-1">
+                  <span style={{ color: "var(--text-secondary)" }}>AI Edge Node</span>
+                  <span className="px-2 py-0.5 rounded border text-[10px]" style={{ background: edgeNode.isOnline ? "rgba(16, 185, 129, 0.08)" : "rgba(229, 72, 77, 0.08)", borderColor: edgeNode.isOnline ? "rgba(16, 185, 129, 0.2)" : "rgba(229, 72, 77, 0.2)", color: edgeNode.isOnline ? "#34d399" : "#f87171" }}>
+                    {edgeNode.isOnline ? 'OPERATIONAL' : 'SERVICE DOWN'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span style={{ color: "var(--text-secondary)" }}>Camera Processing</span>
+                  <span className="px-2 py-0.5 rounded border text-[10px]" style={{ background: edgeNode.isOnline ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)", borderColor: edgeNode.isOnline ? "rgba(16, 185, 129, 0.2)" : "rgba(245, 158, 11, 0.2)", color: edgeNode.isOnline ? "#34d399" : "#fbbf24" }}>
+                    {edgeNode.isOnline ? 'OPERATIONAL' : 'ISSUE DETECTED'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span style={{ color: "var(--text-secondary)" }}>WebSocket Gateway</span>
+                  <span className="px-2 py-0.5 rounded border text-[10px]" style={{ background: wsConnected ? "rgba(16, 185, 129, 0.08)" : "rgba(229, 72, 77, 0.08)", borderColor: wsConnected ? "rgba(16, 185, 129, 0.2)" : "rgba(229, 72, 77, 0.2)", color: wsConnected ? "#34d399" : "#f87171" }}>
+                    {wsConnected ? 'OPERATIONAL' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span style={{ color: "var(--text-secondary)" }}>Database Sync</span>
+                  <span className="px-2 py-0.5 rounded border text-[10px]" style={{ background: apiHealthy ? "rgba(16, 185, 129, 0.08)" : "rgba(229, 72, 77, 0.08)", borderColor: apiHealthy ? "rgba(16, 185, 129, 0.2)" : "rgba(229, 72, 77, 0.2)", color: apiHealthy ? "#34d399" : "#f87171" }}>{apiHealthy ? 'OPERATIONAL' : 'SYNC FAILED'}</span>
+                </div>
+              </div>
+
+              {edgeNode.id && (
+                <div className="pt-4 border-t space-y-2" style={{ borderColor: "var(--border-glass)" }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Node ID</span>
+                    <span className="text-[10px] font-mono" style={{ color: "var(--accent-hover)" }}>{edgeNode.id}</span>
+                  </div>
+                  {edgeNode.ddnsDomain && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Node Domain</span>
+                      <span className="text-[10px] font-mono" style={{ color: "var(--accent-hover)" }}>{edgeNode.ddnsDomain}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div className="mt-4 flex items-center text-xs font-semibold text-gray-400 group-hover:text-white transition-colors">
-          OPEN CONTROLS <ChevronRight size={14} className="ml-1" />
-        </div>
-      </motion.div>
-    </Link>
-  );
-}
-
-function StatusRow({ label, status }: { label: string, status: 'active' | 'warning' | 'error' }) {
-  const statusConfig = {
-    active: { color: 'bg-green-500', text: 'Operational', ghost: 'bg-green-500/10 text-green-400' },
-    warning: { color: 'bg-yellow-500', text: 'Issue Detected', ghost: 'bg-yellow-500/10 text-yellow-400' },
-    error: { color: 'bg-red-500', text: 'Service Down', ghost: 'bg-red-500/10 text-red-400' },
-  };
-
-  const config = statusConfig[status];
-
-  return (
-    <div className="flex items-center justify-between group">
-      <span className="text-sm text-gray-400 group-hover:text-gray-200 transition-colors">{label}</span>
-      <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tighter ${config.ghost} flex items-center gap-1.5`}>
-        <span className={`w-1 h-1 rounded-full ${config.color}`} />
-        {config.text}
       </div>
     </div>
   );

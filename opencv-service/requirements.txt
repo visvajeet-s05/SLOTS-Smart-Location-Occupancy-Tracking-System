@@ -4,6 +4,7 @@ opencv-python-headless
 numpy
 requests
 ultralytics
+onnxruntime
 scikit-learn
 pandas
 mysql-connector-python

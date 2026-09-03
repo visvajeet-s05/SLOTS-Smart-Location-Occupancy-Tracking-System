@@ -11,18 +11,18 @@ export async function POST(request: NextRequest) {
 
     if (paymentIntent.status === 'succeeded') {
       await prisma.payment.upsert({
-        where: { stripeId: paymentIntentId },
+        where: { stripePaymentIntentId: paymentIntentId },
         update: {
-          status: 'CONFIRMED',
+          status: 'COMPLETED',
           updatedAt: new Date(),
         },
         create: {
           id: crypto.randomUUID(),
-          stripeId: paymentIntentId,
+          stripePaymentIntentId: paymentIntentId,
           amount: paymentIntent.amount,
           currency: paymentIntent.currency,
           bookingId: paymentIntent.metadata?.bookingId,
-          status: 'CONFIRMED',
+          status: 'COMPLETED',
           region: paymentIntent.metadata?.region || 'us',
           updatedAt: new Date(),
         },

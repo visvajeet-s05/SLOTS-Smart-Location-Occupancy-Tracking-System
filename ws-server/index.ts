@@ -118,7 +118,7 @@ wss.on("connection", (ws: WebSocket) => {
         }
 
         // Global customer subscription (no specific lotId)
-        if (role === "CUSTOMER" && !lotId) {
+        if ((role as any) === "CUSTOMER" && !lotId) {
           globalCustomers.add(ws);
           console.log(`✅ CUSTOMER subscribed to ALL parking lots globally`);
 

@@ -46,7 +46,10 @@ export default function RootLayout({
               window.history.scrollRestoration = 'manual';
             }
           `}} />
-        <SessionProvider>
+        <SessionProvider
+          refetchInterval={5 * 60}
+          refetchOnWindowFocus={false}
+        >
           <AuthProvider>
             <AuthRedirect />
             <SessionTimeoutGuard />

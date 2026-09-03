@@ -12,6 +12,8 @@ import { SlotStatus, UpdatedBy } from '@prisma/client';
  *   lotId: string,
  *   edgeNodeId: string,
  *   edgeToken: string,
+ *   cameraId: string, // Optional: identifies which camera made the detection
+ *   zoneCode: string, // Optional: zone filter for multi-camera setups
  *   detections: [
  *     { slot_id: string, car_detected: boolean, confidence: number }
  *   ]
@@ -27,13 +29,30 @@ import { SlotStatus, UpdatedBy } from '@prisma/client';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { lotId, edgeNodeId, edgeToken, detections } = body;
+    const { lotId, edgeNodeId, edgeToken, cameraId, zoneCode, detections } = body;
 
     if (!lotId || !edgeNodeId || !edgeToken || !Array.isArray(detections)) {
       return NextResponse.json(
         { error: 'Missing required fields: lotId, edgeNodeId, edgeToken, detections[]' },
         { status: 400 }
       );
+    }
+
+    // Verify camera belongs to this lot if cameraId is provided
+    if (cameraId) {
+      const camera = await prisma.camera.findFirst({
+        where: {
+          id: cameraId,
+          lotId
+        }
+      });
+
+      if (!camera) {
+        return NextResponse.json(
+          { error: 'Camera not found in this parking lot' },
+          { status: 404 }
+        );
+      }
     }
 
     // 1. Authenticate edge node
@@ -52,9 +71,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Fetch all slots with active bookings
+    // 2. Fetch all slots with active bookings (optionally filtered by zone)
+    const whereClause: any = { lotId };
+    if (zoneCode) {
+      whereClause.zoneCode = zoneCode;
+    }
+
     const allSlots = await prisma.slot.findMany({
-      where: { lotId },
+      where: whereClause,
       include: {
         bookings: {
           where: {
@@ -151,6 +175,8 @@ export async function POST(req: NextRequest) {
           confidence,
           source: 'AI',
           car_detected,
+          cameraId: cameraId || null,
+          zoneCode: zoneCode || existingSlot.zoneCode,
           timestamp: new Date().toISOString(),
         });
       } catch (detErr: any) {
@@ -167,6 +193,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       lotId,
+      cameraId: cameraId || null,
+      zoneCode: zoneCode || null,
       results,
       timestamp: new Date().toISOString(),
     });

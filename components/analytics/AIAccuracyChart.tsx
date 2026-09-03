@@ -45,9 +45,9 @@ export default function AIAccuracyChart({
   ];
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+    <div className="w-full">
       <h3 className="text-lg font-semibold mb-4">AI Performance</h3>
-      <div className="h-64">
+      <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
             <PolarGrid stroke="#374151" />

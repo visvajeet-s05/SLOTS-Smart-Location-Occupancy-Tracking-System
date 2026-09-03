@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { Users, Globe, Zap, Shield } from "lucide-react"
 import Image from "next/image"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 
 export default function About() {
   const stats = [
@@ -75,8 +75,8 @@ export default function About() {
             transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 text-transparent bg-clip-text mb-6">
-              About Slotify
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-400 to-indigo-600 text-transparent bg-clip-text mb-6">
+              About SLOTS
             </h1>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
               We're on a mission to revolutionize the parking experience in Tamil Nadu through technology and innovation.
@@ -92,7 +92,7 @@ export default function About() {
               <h2 className="text-2xl md:text-3xl font-bold mb-6">Our Story</h2>
               <div className="space-y-4 text-gray-300">
                 <p>
-                  Founded in 2024 in Chennai, Slotify Tamil Nadu was born out of a local frustration: the struggle
+                  Founded in 2024 in Chennai, SLOTS was born out of a local frustration: the struggle
                   to find parking in areas like T. Nagar, Pondy Bazaar, and R.S. Puram.
                 </p>
                 <p>
@@ -111,8 +111,8 @@ export default function About() {
               transition={{ duration: 0.5, delay: 0.3 }}
               className="relative flex items-center justify-center min-h-[400px]"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl blur-xl opacity-20 transform scale-105"></div>
-              <Logo size="large" className="relative z-10 scale-[2] md:scale-[2.5]" />
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-indigo-600 rounded-xl blur-xl opacity-20 transform scale-105"></div>
+              <SLOTSLogo size="large" className="relative z-10 scale-[2] md:scale-[2.5]" />
             </motion.div>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function About() {
                 viewport={{ once: true }}
                 className="text-center"
               >
-                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 text-transparent bg-clip-text mb-2">
+                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-400 to-indigo-600 text-transparent bg-clip-text mb-2">
                   {stat.value}
                 </div>
                 <div className="text-gray-400">{stat.label}</div>
@@ -151,11 +151,11 @@ export default function About() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 text-transparent bg-clip-text mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-400 to-indigo-600 text-transparent bg-clip-text mb-4">
               Our Values
             </h2>
             <p className="text-lg text-gray-300 max-w-3xl mx-auto">
-              These core values guide everything we do at Slotify.
+              These core values guide everything we do at SLOTS.
             </p>
           </motion.div>
 
@@ -169,8 +169,8 @@ export default function About() {
                 viewport={{ once: true }}
                 className="bg-gray-900 rounded-xl p-6 border border-gray-800"
               >
-                <div className="w-12 h-12 bg-purple-600/20 rounded-full flex items-center justify-center mb-4">
-                  <value.icon className="h-6 w-6 text-purple-400" />
+                <div className="w-12 h-12 bg-indigo-600/20 rounded-full flex items-center justify-center mb-4">
+                  <value.icon className="h-6 w-6 text-indigo-400" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{value.title}</h3>
                 <p className="text-gray-400">{value.description}</p>
@@ -190,11 +190,11 @@ export default function About() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 text-transparent bg-clip-text mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-400 to-indigo-600 text-transparent bg-clip-text mb-4">
               Meet Our Team
             </h2>
             <p className="text-lg text-gray-300 max-w-3xl mx-auto">
-              The passionate Tamil Nadu team behind Slotify.
+              The passionate Tamil Nadu team behind SLOTS.
             </p>
           </motion.div>
 
@@ -217,7 +217,7 @@ export default function About() {
                 />
                 <div className="p-6">
                   <h3 className="text-xl font-semibold mb-1">{member.name}</h3>
-                  <p className="text-purple-400 mb-4">{member.role}</p>
+                  <p className="text-indigo-400 mb-4">{member.role}</p>
                   <p className="text-gray-400">{member.bio}</p>
                 </div>
               </motion.div>
@@ -230,7 +230,7 @@ export default function About() {
       <footer className="bg-gray-900 border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="text-center text-gray-400">
-            <p>@2026 Slotify. All rights reserved.</p>
+            <p>@2026 SLOTS. All rights reserved.</p>
           </div>
         </div>
       </footer>

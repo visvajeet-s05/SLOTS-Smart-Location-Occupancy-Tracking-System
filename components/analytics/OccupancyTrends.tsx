@@ -15,9 +15,9 @@ interface OccupancyTrendsProps {
 
 export default function OccupancyTrends({ data }: OccupancyTrendsProps) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+    <div className="w-full">
       <h3 className="text-lg font-semibold mb-4">Occupancy Trends (Last 7 Days)</h3>
-      <div className="h-64">
+      <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

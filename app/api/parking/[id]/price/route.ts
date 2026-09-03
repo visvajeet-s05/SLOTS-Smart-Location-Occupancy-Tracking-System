@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { pricingEngine } from '@/lib/pricing-engine'
-import { authOptions } from '@/lib/auth'
+import { authOptions } from '@/lib/auth-options'
 
 export async function GET(
   request: NextRequest,

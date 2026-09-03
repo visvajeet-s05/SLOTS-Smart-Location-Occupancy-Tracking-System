@@ -1,18 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id || session.user.role !== "OWNER") {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const lotSlug = searchParams.get("lotSlug") || "CHENNAI_CENTRAL";
+    const requestedLotId = searchParams.get("lotId");
     const days = parseInt(searchParams.get("days") || "7");
+
+    const ownerProfile = await prisma.ownerprofile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true, parkinglot: { select: { id: true } } }
+    });
+
+    const lotId = requestedLotId || ownerProfile?.parkinglot?.[0]?.id || null;
+    if (!lotId) {
+      return NextResponse.json({ success: false, error: "Owner has no linked parking lot" }, { status: 404 });
+    }
 
     const now = new Date();
     const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-    // Find the parking lot using lowercase model name from schema
     const lot = await prisma.parkinglot.findUnique({
-      where: { id: lotSlug },
+      where: { id: lotId },
       include: {
         slots: {
           include: {
@@ -24,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     if (!lot) {
       return NextResponse.json(
-        { error: `Parking lot not found: ${lotSlug}` },
+        { error: `Parking lot not found: ${lotId}` },
         { status: 404 }
       );
     }
@@ -66,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      lotSlug,
+      lotId,
       period: `${days} days`,
       generatedAt: new Date().toISOString(),
       analytics,

@@ -1,0 +1,26 @@
+{
+  "name": "@slots/realtime-service",
+  "version": "1.0.0",
+  "description": "SLOTS Module 3: Real-Time Transport & Pub/Sub Scaling",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "benchmark": "tsx src/benchmark.ts",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.4",
+    "redis": "^4.6.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

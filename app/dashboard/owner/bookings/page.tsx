@@ -119,15 +119,15 @@ export default function OwnerBookingsPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative max-w-7xl mx-auto px-6 pt-0 pb-20 space-y-8"
+        className="relative w-full px-4 sm:px-5 lg:px-6 pt-0 pb-20 space-y-8"
       >
         {/* Header */}
-        <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 pt-1">
           <div>
             <h1 className="text-4xl font-bold tracking-tight mb-2">Bookings</h1>
             <p className="text-gray-400">Manage and track all parking reservations in real-time</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Button variant="outline" className="bg-white/5 border-white/10 hover:bg-white/10 rounded-xl h-11">
               <Download size={18} className="mr-2" /> Export JSON
             </Button>
@@ -138,7 +138,7 @@ export default function OwnerBookingsPage() {
         </motion.div>
 
         {/* Quick Actions Grid */}
-        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
           <ActionTile
             title="Scan QR Entry"
             desc="Validate visitor entrance"
@@ -160,7 +160,7 @@ export default function OwnerBookingsPage() {
         </motion.div>
 
         {/* Stats Grid */}
-        <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div variants={itemVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           <BookingStat title="Active" value={stats.active} icon={<Timer className="text-green-400" />} color="green" />
           <BookingStat title="Upcoming" value={stats.upcoming} icon={<Calendar className="text-blue-400" />} color="blue" />
           <BookingStat title="Completed" value={stats.completed} icon={<CheckCircle2 className="text-purple-400" />} color="purple" />
@@ -169,7 +169,7 @@ export default function OwnerBookingsPage() {
 
         {/* Controls */}
         <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
-          <div className="relative w-full md:w-96 group">
+          <div className="relative w-full md:w-[38rem] group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
             <Input
               placeholder="Search by customer, id, or slot..."

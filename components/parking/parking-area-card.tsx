@@ -154,8 +154,14 @@ function ParkingAreaCard({
           <div className="bg-white/[0.03] border border-white/5 rounded-xl p-3 hover:bg-white/[0.07] transition-colors">
             <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">Rating</p>
             <div className="flex items-center gap-1.5">
-              <span className="text-lg font-bold text-white">{parkingArea.rating}</span>
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              {parkingArea.rating > 0 ? (
+                <>
+                  <span className="text-lg font-bold text-white">{parkingArea.rating}</span>
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                </>
+              ) : (
+                <span className="text-sm font-bold text-slate-400">New</span>
+              )}
             </div>
           </div>
         </div>

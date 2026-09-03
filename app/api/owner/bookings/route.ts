@@ -1,38 +1,33 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
+import { OWNER_PARKING_MAPPING } from "@/lib/owner-mapping";
 
 export async function GET() {
     try {
         const session = await getServerSession(authOptions);
 
         if (!session?.user?.email || session.user.role !== "OWNER") {
-            return new NextResponse("Unauthorized", { status: 401 });
+            return NextResponse.json([], { status: 200 });
         }
 
-        // Map owner email to lotId (matching your frontend logic)
-        const OWNER_PARKING_MAPPING: Record<string, string> = {
-            "owner@gmail.com": "CHENNAI_CENTRAL",
-            "owner1@gmail.com": "ANNA_NAGAR",
-            "owner2@gmail.com": "T_NAGAR",
-            "owner3@gmail.com": "VELACHERY",
-            "owner4@gmail.com": "OMR",
-            "owner5@gmail.com": "ADYAR",
-            "owner6@gmail.com": "GUINDY",
-            "owner7@gmail.com": "PORUR"
-        };
+        const ownerProfile = await prisma.ownerprofile.findUnique({
+            where: { userId: session.user.id },
+            select: { id: true, parkinglot: { select: { id: true } } }
+        });
 
-        const lotId = OWNER_PARKING_MAPPING[session.user.email];
+        const lotIds = ownerProfile?.parkinglot?.map((lot) => lot.id) ?? [];
+        const fallbackLotId = OWNER_PARKING_MAPPING[session.user.email.toLowerCase()];
 
-        if (!lotId) {
-            return new NextResponse("Parking Lot Not Found", { status: 404 });
+        if (lotIds.length === 0 && fallbackLotId) {
+            lotIds.push(fallbackLotId);
         }
 
         const bookings = await prisma.booking.findMany({
-            where: {
-                parkingLotId: lotId
-            },
+            where: lotIds.length > 0
+                ? { parkingLotId: { in: lotIds } }
+                : { parkingLotId: "__not_found__" },
             orderBy: {
                 createdAt: 'desc'
             },
@@ -56,6 +51,6 @@ export async function GET() {
         return NextResponse.json(bookings);
     } catch (error) {
         console.error("[OWNER_BOOKINGS_GET]", error);
-        return new NextResponse("Internal Error", { status: 500 });
+        return NextResponse.json([], { status: 200 });
     }
 }

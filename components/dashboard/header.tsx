@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSession, signOut } from "next-auth/react"
-import Logo from "@/components/ui/Logo"
+import SLOTSLogo from "@/components/ui/SLOTSLogo"
 
 export default function Header() {
   const router = useRouter()
@@ -27,14 +27,14 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-800 bg-black/80 backdrop-blur-md px-4">
       <div className="flex items-center gap-2">
-        <Logo size="small" />
+        <SLOTSLogo size="small" />
       </div>
 
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" className="relative" onClick={() => setNotifications(0)}>
           <Bell className="h-5 w-5" />
           {notifications > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-xs">
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-xs">
               {notifications}
             </span>
           )}

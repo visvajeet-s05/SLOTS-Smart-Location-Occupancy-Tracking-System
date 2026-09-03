@@ -155,8 +155,8 @@ export default function AdminFinancePage() {
               {data?.recentPayments?.map((tx: any) => (
                 <div key={tx.id} className="flex items-center justify-between border-b border-gray-800 pb-3 last:border-0 last:pb-0 hover:bg-gray-800/30 transition-colors -mx-2 px-2 rounded">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${tx.status === 'PAID' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                      {tx.status === 'PAID' ? <ArrowDownRight size={16} /> : <AlertCircle size={16} />} // Using alert circle if failed
+                    <div className={`p-2 rounded-full ${tx.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                      {tx.status === 'COMPLETED' ? <ArrowDownRight size={16} /> : <AlertCircle size={16} />} // Using alert circle if failed
                     </div>
                     <div>
                       <p className="text-sm font-medium text-white truncate w-32">{tx.details}</p>
@@ -164,7 +164,7 @@ export default function AdminFinancePage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-bold ${tx.status === 'PAID' ? 'text-white' : 'text-gray-500'}`}>
+                    <p className={`text-sm font-bold ${tx.status === 'COMPLETED' ? 'text-white' : 'text-gray-500'}`}>
                       {formatCurrency(tx.amount)}
                     </p>
                     <p className="text-xs text-gray-500">{tx.status}</p>

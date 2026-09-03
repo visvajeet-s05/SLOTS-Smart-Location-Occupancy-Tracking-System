@@ -30,14 +30,19 @@ export async function POST(req: NextRequest) {
 
         if (paymentId) {
             try {
-                await prisma.payment.update({
-                    where: { bookingId: bookingId }, 
-                    data: { 
-                        status: "PAID", 
-                        confirmedAt: new Date(),
-                        txHash: txHash
-                    }
+                const payment = await prisma.payment.findFirst({
+                    where: { bookingId: bookingId }
                 })
+                if (payment) {
+                    await prisma.payment.update({
+                        where: { id: payment.id },
+                        data: { 
+                            status: "COMPLETED", 
+                            confirmedAt: new Date(),
+                            txHash: txHash
+                        }
+                    })
+                }
             } catch (e) {
                 console.warn("Could not update payment status (might already be updated)", e)
             }

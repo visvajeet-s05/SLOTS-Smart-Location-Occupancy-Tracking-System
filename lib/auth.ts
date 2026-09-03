@@ -1,131 +1,107 @@
-import { NextAuthOptions, getServerSession } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
-import { prisma } from "./prisma"
-import { cookies } from "next/headers"
-import jwt from "jsonwebtoken"
+import { getServerSession } from "next-auth"
 import bcrypt from "bcryptjs"
+import { PrismaClient } from "@prisma/client"
+import { authOptions } from "./auth-options"
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) {
-          console.log("❌ Missing credentials")
-          return null
-        }
+const prisma = new PrismaClient()
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: {
-            ownerprofile: {
-              include: {
-                parkinglot: true
-              }
-            }
-          }
-        })
+type Role = "SUPER_ADMIN" | "CUSTOMER" | "OWNER"
 
-        if (!user) {
-          console.log("❌ User not found:", credentials.email)
-          return null
-        }
-
-        const passwordMatch = await bcrypt.compare(
-          credentials.password,
-          user.password
-        )
-
-        if (!passwordMatch) {
-          console.log("❌ Invalid password for:", credentials.email)
-          return null
-        }
-
-        let ownerStatus = null
-        let parkingLotId = null
-        if (user.role === "OWNER") {
-          ownerStatus = user.ownerprofile?.status || null
-          // Get the first parking lot ID if exists
-          if (user.ownerprofile?.parkinglot && user.ownerprofile.parkinglot.length > 0) {
-            parkingLotId = user.ownerprofile.parkinglot[0].id
-          }
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          ownerStatus,
-          parkingLotId,
-        } as any
-
-      }
-    })
-  ],
-  session: {
-    strategy: "jwt"
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.name = user.name
-        token.role = user.role
-        // @ts-ignore - attributes added in authorize return
-        token.parkingLotId = user.parkingLotId
-      }
-      return token
-    },
-
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string
-        session.user.name = token.name as string
-        session.user.role = token.role as string
-        session.user.parkingLotId = token.parkingLotId as string | undefined
-      }
-      return session
-    }
-
-  },
-  pages: {
-    signIn: "/"
-  }
-}
-
-export async function getCurrentUser() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized")
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      ownerprofile: {
-        include: {
-          parkinglot: true
-        }
-      }
-    }
-  })
-
-  if (!user) {
-    throw new Error("User not found")
-  }
-
-  return user
-}
-
-export async function getUserFromSession() {
-  return await getCurrentUser()
-}
-
-export async function auth() {
+/**
+ * Get current authentication session
+ */
+export async function getAuthSession() {
   return await getServerSession(authOptions)
+}
+
+/**
+ * Hash a password using bcrypt
+ */
+export async function hashPassword(password: string): Promise<string> {
+  return await bcrypt.hash(password, 12)
+}
+
+/**
+ * Verify a password against a hash
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash)
+}
+
+/**
+ * Require specific role for access
+ * Throws 403 error if user doesn't have required role
+ */
+export async function requireRole(allowedRoles: Role[]): Promise<void> {
+  const session = await getAuthSession()
+  
+  if (!session || !session.user) {
+    throw new Error("UNAUTHORIZED")
+  }
+  
+  const userRole = session.user.role as Role
+  
+  if (!allowedRoles.includes(userRole)) {
+    throw new Error("FORBIDDEN")
+  }
+}
+
+/**
+ * Check if user has specific role
+ */
+export async function hasRole(role: Role): Promise<boolean> {
+  const session = await getAuthSession()
+  
+  if (!session || !session.user) {
+    return false
+  }
+  
+  return session.user.role === role
+}
+
+/**
+ * Check if user has any of the specified roles
+ */
+export async function hasAnyRole(roles: Role[]): Promise<boolean> {
+  const session = await getAuthSession()
+  
+  if (!session || !session.user) {
+    return false
+  }
+  
+  return roles.includes(session.user.role as Role)
+}
+
+/**
+ * Get current user from session
+ */
+export async function getCurrentUser() {
+  const session = await getAuthSession()
+  
+  if (!session || !session.user) {
+    return null
+  }
+  
+  return session.user
+}
+
+/**
+ * Check if user is authenticated
+ */
+export async function isAuthenticated(): Promise<boolean> {
+  const session = await getAuthSession()
+  return !!session && !!session.user
+}
+
+/**
+ * Get user from session (for use in API routes)
+ */
+export async function getUserFromSession() {
+  const session = await getAuthSession()
+  
+  if (!session || !session.user) {
+    return null
+  }
+  
+  return session.user
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 
 export async function GET() {
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    let { slotId, duration, amount, licensePlate, vehicleModel, parkingLotId } = body
+    let { slotId, duration, amount, licensePlate, vehicleModel, parkingLotId, idempotencyKey } = body
 
     if (!slotId || !duration || !amount) {
       return new NextResponse("Missing required fields (slotId, duration, amount)", { status: 400 })
@@ -224,19 +224,77 @@ export async function POST(req: Request) {
 
     const bookingId = `BK-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
 
-    const booking = await prisma.booking.create({
-      data: {
-        id: bookingId,
-        customerId: user.id,
-        ownerId: parkingLot.ownerprofile.userId,
-        parkingLotId: parkingLotId,
-        slotId: slotId,
-        startTime: startTime,
-        endTime: endTime,
-        amount: parseFloat(amount),
-        vehicleType: vehicleModel || "Car",
-        status: "UPCOMING",
+    // B27a: Idempotency with proper transaction boundaries
+    const booking = await prisma.$transaction(async (tx) => {
+      // Check idempotency key INSIDE transaction
+      if (idempotencyKey) {
+        const existingKey = await tx.idempotencykeys.findUnique({
+          where: {
+            actionType_idempotencyKey: {
+              actionType: "CREATE_BOOKING",
+              idempotencyKey
+            }
+          }
+        })
+        
+        if (existingKey) {
+          const cachedResult = JSON.parse(existingKey.result)
+          return cachedResult.booking
+        }
       }
+      
+      // Create the booking
+      const newBooking = await tx.booking.create({
+        data: {
+          id: bookingId,
+          customerId: user.id,
+          ownerId: parkingLot.ownerprofile.userId,
+          parkingLotId: parkingLotId,
+          slotId: slotId,
+          startTime: startTime,
+          endTime: endTime,
+          amount: parseFloat(amount),
+          vehicleType: vehicleModel || "Car",
+          status: "UPCOMING",
+          idempotencyKey,
+        }
+      })
+      
+      // Store idempotency result INSIDE the same transaction
+      if (idempotencyKey) {
+        try {
+          await tx.idempotencykeys.create({
+            data: {
+              id: `idemp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              actionType: "CREATE_BOOKING",
+              idempotencyKey,
+              userId: user.id,
+              result: JSON.stringify({ booking: newBooking }),
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            }
+          })
+        } catch (error: any) {
+          // If unique constraint violation occurs, another request won the race
+          // Query for the existing record and return its cached result
+          if (error.code === 'P2002') {
+            const existingKey = await tx.idempotencykeys.findUnique({
+              where: {
+                actionType_idempotencyKey: {
+                  actionType: "CREATE_BOOKING",
+                  idempotencyKey
+                }
+              }
+            })
+            if (existingKey) {
+              const cachedResult = JSON.parse(existingKey.result)
+              return cachedResult.booking
+            }
+          }
+          throw error
+        }
+      }
+      
+      return newBooking
     })
 
     // Get current slot status for broadcast and update

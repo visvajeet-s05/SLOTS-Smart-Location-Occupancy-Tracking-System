@@ -2,7 +2,7 @@ import os
 
 # --- INPUT SOURCE CONFIGURATION ---
 # Options: RTSP URL ("rtsp://user:pass@ip:port/h264"), Video File ("test_video.mp4"), or Webcam Index (0)
-CAMERA_SOURCE = "rtsp://10.12.95.11:8080/h264_pcm.sdp"  
+CAMERA_SOURCE = "rtsp://100.125.245.26:8080/h264_pcm.sdp"  
 
 # --- TIMING & SAMPLING CONFIGURATION ---
 BASELINE_INTERVAL_SEC = 4.0      # Baseline sampling rate (0.25 FPS)

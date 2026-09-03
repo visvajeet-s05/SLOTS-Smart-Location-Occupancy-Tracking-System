@@ -7,9 +7,9 @@ export async function POST(request: NextRequest) {
   const slot = await prisma.slot.findUnique({ where: { id: body.slotId } });
   if (!slot || slot.slotType !== "EV_CHARGING") return NextResponse.json({ error: "EV charging slot not found" }, { status: 404 });
   if (body.event === "OCCUPIED") return NextResponse.json(await prisma.eVSession.create({ data: { slotId: body.slotId, status: "ACTIVE" } }), { status: 201 });
-  const active = await prisma.eVSession.findFirst({ where: { slotId: body.slotId, status: "ACTIVE" }, orderBy: { startedAt: "desc" } });
+  const active = await prisma.eVSession.findFirst({ where: { slotId: body.slotId, status: "ACTIVE" }, orderBy: { startTime: "desc" } });
   if (!active) return NextResponse.json({ error: "No active session" }, { status: 409 });
   const graceEndsAt = new Date(Date.now() + 10 * 60_000);
-  const session = await prisma.eVSession.update({ where: { id: active.id }, data: { status: "GRACE_PERIOD", completedAt: new Date(), graceEndsAt } });
-  return NextResponse.json({ session, alert: "Charging complete. Move your vehicle within 10 minutes to avoid overstay pricing." });
+  const session = await prisma.eVSession.update({ where: { id: active.id }, data: { status: "GRACE_PERIOD", endTime: new Date() } });
+  return NextResponse.json({ session, alert: "Charging complete. Move your vehicle immediately." });
 }

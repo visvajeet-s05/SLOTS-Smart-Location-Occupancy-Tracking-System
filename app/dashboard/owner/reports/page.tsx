@@ -42,7 +42,7 @@ export default function OwnerReportsPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative max-w-7xl mx-auto px-6 pt-0 pb-20 space-y-12"
+         className="relative w-full max-w-[1440px] mx-auto px-6 lg:px-8 pt-0 pb-20 space-y-10"
       >
         {/* Header Section */}
         <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -63,69 +63,38 @@ export default function OwnerReportsPage() {
         </motion.div>
 
         {/* Categories Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid w-full grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Main Financial Hub */}
-          <motion.div variants={itemVariants} className="lg:col-span-2 space-y-8">
+          <motion.div variants={itemVariants} className="lg:col-span-2 w-full space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ReportCard
-                href="/dashboard/owner/reports/invoices"
-                title="Business Invoices"
-                desc="Monthly billing statements & itemized usage"
-                icon={<Receipt className="text-blue-400" />}
-                color="blue"
-              />
-              <ReportCard
-                href="/dashboard/owner/reports/tax"
-                title="Tax Compliance"
-                desc="GST/VAT summaries and fiscal declarations"
-                icon={<ShieldCheck className="text-green-400" />}
-                color="green"
-              />
-              <ReportCard
-                href="/dashboard/owner/reports/settlements"
-                title="Bank Settlements"
-                desc="Track direct deposits and payout history"
-                icon={<Landmark className="text-purple-400" />}
-                color="purple"
-              />
-              <ReportCard
-                href="/dashboard/owner/reports/analytics-export"
-                title="Custom Exports"
-                desc="Generate raw data CSVs for external tools"
-                icon={<FileText className="text-yellow-400" />}
-                color="yellow"
-              />
+              <ReportCard href="/dashboard/owner/reports/invoices" title="Business Invoices" desc="Monthly billing statements & itemized usage" icon={<Receipt className="text-indigo-400" />} color="indigo" />
+              <ReportCard href="/dashboard/owner/reports/tax" title="Tax Compliance" desc="GST/VAT summaries and fiscal declarations" icon={<ShieldCheck className="text-emerald-400" />} color="emerald" />
+              <ReportCard href="/dashboard/owner/reports/settlements" title="Bank Settlements" desc="Track direct deposits and payout history" icon={<Landmark className="text-amber-400" />} color="amber" />
+              <ReportCard href="/dashboard/owner/reports/analytics-export" title="Custom Exports" desc="Generate raw data CSVs for external tools" icon={<FileText className="text-red-400" />} color="red" />
             </div>
 
-            {/* Quick Summary Panel */}
             <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <PieChart size={20} className="text-purple-400" />
-                  Pending Settlements
-                </h3>
+                <h3 className="text-xl font-bold flex items-center gap-2"><PieChart size={20} className="text-indigo-400" />Pending Settlements</h3>
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Next Payout: Feb 15</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Gross Unsettled</p>
-                  <p className="text-3xl font-black text-white">₹42,850</p>
-                  <p className="text-[10px] text-green-400 font-bold flex items-center gap-1">
-                    <ArrowUpRight size={12} /> +₹1,200 today
-                  </p>
+                  <p className="text-3xl font-black text-white">₹0</p>
+                  <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1"><ArrowUpRight size={12} /> ₹0 today</p>
                 </div>
                 <div className="w-px h-full bg-white/5 hidden md:block" />
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Processing Fee</p>
-                  <p className="text-3xl font-black text-white">₹852</p>
-                  <p className="text-[10px] text-gray-500 font-bold italic">Standard 2.5% rate</p>
+                  <p className="text-3xl font-black text-white">₹0</p>
+                  <p className="text-[10px] text-gray-500 font-bold italic">0.00% applied rate</p>
                 </div>
                 <div className="w-px h-full bg-white/5 hidden md:block" />
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Net Payable</p>
-                  <p className="text-3xl font-black text-purple-400">₹41,998</p>
-                  <p className="text-[10px] text-purple-400/60 font-medium">Ready for wire transfer</p>
+                  <p className="text-3xl font-black text-indigo-400">₹0</p>
+                  <p className="text-[10px] text-indigo-400/60 font-medium">No cleared payout pending</p>
                 </div>
               </div>
             </div>
@@ -167,17 +136,17 @@ export default function OwnerReportsPage() {
 
 function ReportCard({ href, title, desc, icon, color }: any) {
   const configs: any = {
-    blue: "hover:border-blue-500/40 bg-blue-500/[0.03]",
-    green: "hover:border-green-500/40 bg-green-500/[0.03]",
-    purple: "hover:border-purple-500/40 bg-purple-500/[0.03]",
-    yellow: "hover:border-yellow-500/40 bg-yellow-500/[0.03]",
+    indigo: "hover:border-indigo-500/40 bg-indigo-500/[0.04]",
+    emerald: "hover:border-emerald-500/40 bg-emerald-500/[0.04]",
+    amber: "hover:border-amber-500/40 bg-amber-500/[0.04]",
+    red: "hover:border-red-500/40 bg-red-500/[0.04]",
   };
 
   return (
     <Link href={href}>
       <motion.div
         whileHover={{ y: -5 }}
-        className={`p-6 border border-white/10 rounded-3xl backdrop-blur-sm transition-all group ${configs[color]}`}
+         className={`w-full p-6 border border-white/10 rounded-3xl backdrop-blur-sm transition-all group ${configs[color]}`}
       >
         <div className="flex items-start justify-between">
           <div className="p-3 bg-white/5 rounded-2xl border border-white/10 group-hover:scale-110 transition-transform mb-6">

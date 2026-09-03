@@ -1,0 +1,76 @@
+# SLOTS Python Services Dockerfile (Multi-stage)
+# For pricing-service, payment-service, ev-charging-service, and v2x-service
+# (FastAPI + PyTorch + PettingZoo + WebSockets + NetworkX)
+
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /tmp
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install common dependencies for all services
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --user \
+    websockets>=12.0 \
+    networkx>=3.0 \
+    redis>=5.0.0 \
+    asyncio-mqtt>=0.16.0
+
+# Copy service-specific requirements and install
+ARG SERVICE_PATH
+COPY ${SERVICE_PATH}/requirements.txt .
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Python packages from builder stage
+COPY --from=builder /root/.local /root/.local
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy service code
+ARG SERVICE_PATH
+COPY ${SERVICE_PATH} ./app/
+
+# Create necessary directories
+RUN mkdir -p /app/logs
+
+# Set environment variables
+ENV PORT=8001 \
+    REDIS_HOST=redis \
+    REDIS_PORT=6379
+
+# Expose service port
+ARG SERVICE_PORT=8001
+EXPOSE ${SERVICE_PORT}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen(f'http://localhost:${SERVICE_PORT}/health')"
+
+# Run the service (supports different entry points)
+ARG SERVICE_PORT=8001
+CMD ["sh", "-c", "if [ -f app/main.py ]; then uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT}; elif [ -f app/ocpp_gateway.py ]; then python app/ocpp_gateway.py; elif [ -f app/iso23374_wayfinding.py ]; then python app/iso23374_wayfinding.py; else uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT}; fi"]

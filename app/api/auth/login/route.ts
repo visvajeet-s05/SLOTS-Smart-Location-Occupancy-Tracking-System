@@ -17,9 +17,16 @@ export async function POST(request: NextRequest) {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        role: true,
+      },
     })
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return NextResponse.json(
         { success: false, message: "Invalid credentials" },
         { status: 401 }
@@ -27,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValid = await bcrypt.compare(password, user.password)
+    const isValid = await bcrypt.compare(password, user.passwordHash)
 
     if (!isValid) {
       return NextResponse.json(
@@ -48,8 +55,8 @@ export async function POST(request: NextRequest) {
 
     // Role-based redirect
     let redirect = "/dashboard"
-    if (user.role === "ADMIN") redirect = "/dashboard/admin"
-    if (user.role === "OWNER") redirect = "/dashboard/owner"
+    if ((user.role as any) === "SUPER_ADMIN") redirect = "/dashboard/admin"
+    if ((user.role as any) === "OWNER") redirect = "/dashboard/owner"
 
     // Return response with token, role, and redirect
     return NextResponse.json({

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       const subscriptionId = invoice.subscription
 
       // Find the subscription in our database
-      const subscription = await prisma.subscription.findUnique({
+      const subscription = await prisma.subscription.findFirst({
         where: { stripeSubscriptionId: subscriptionId }
       })
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         // Activate the subscription
         await prisma.subscription.update({
           where: { id: subscription.id },
-          data: { status: "ACTIVE" }
+          data: { isActive: true }
         })
       }
     } else if (event.type === "payment_intent.succeeded") {
@@ -41,14 +41,19 @@ export async function POST(request: NextRequest) {
 
       // Update payment status
       try {
-        await prisma.payment.update({
-          where: { stripeId: intent.id },
-          data: {
-            status: "PAID",
-            confirmedAt: new Date(),
-            updatedAt: new Date()
-          }
+        const payment = await prisma.payment.findFirst({
+          where: { stripePaymentIntentId: intent.id }
         })
+        if (payment) {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              status: "COMPLETED",
+              confirmedAt: new Date(),
+              updatedAt: new Date()
+            }
+          })
+        }
         console.log(`Payment confirmed for intent: ${intent.id}`)
       } catch (err) {
         console.error(`Error updating payment ${intent.id}:`, err)
@@ -57,13 +62,18 @@ export async function POST(request: NextRequest) {
       const intent = event.data.object
 
       try {
-        await prisma.payment.update({
-          where: { stripeId: intent.id },
-          data: {
-            status: "FAILED",
-            updatedAt: new Date()
-          }
+        const payment = await prisma.payment.findFirst({
+          where: { stripePaymentIntentId: intent.id }
         })
+        if (payment) {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              status: "FAILED",
+              updatedAt: new Date()
+            }
+          })
+        }
         console.log(`Payment failed for intent: ${intent.id}`)
       } catch (err) {
         console.error(`Error updating payment failure ${intent.id}:`, err)

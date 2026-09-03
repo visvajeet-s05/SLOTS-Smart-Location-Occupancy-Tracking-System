@@ -60,9 +60,9 @@ export default function OwnerProfilePage() {
     if (isLoading) {
         return (
             <div className="min-h-screen bg-[#030303] text-white p-8">
-                <div className="max-w-5xl mx-auto space-y-8">
+                <div className="w-full max-w-[1440px] mx-auto space-y-8">
                     <Skeleton className="h-48 w-full rounded-3xl bg-white/5" />
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="grid w-full grid-cols-1 md:grid-cols-3 gap-8">
                         <Skeleton className="h-64 rounded-3xl bg-white/5" />
                         <Skeleton className="h-64 md:col-span-2 rounded-3xl bg-white/5" />
                     </div>
@@ -86,7 +86,7 @@ export default function OwnerProfilePage() {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="relative max-w-5xl mx-auto px-6 pt-8 pb-20 space-y-8"
+                 className="relative w-full max-w-[1440px] mx-auto px-6 lg:px-8 pt-0 pb-20 space-y-8"
             >
                 {/* Header / Hero Section */}
                 <motion.div variants={itemVariants} className="relative group">
@@ -101,19 +101,19 @@ export default function OwnerProfilePage() {
                                 {verification?.status === 'APPROVED' ? (
                                     <span className="flex items-center gap-2"><Verified size={14} /> Verified Partner</span>
                                 ) : (
-                                    <span className="flex items-center gap-2"><AlertCircle size={14} /> Verification Pending</span>
+                                    <span className="flex items-center gap-2"><AlertCircle size={14} /> Pending Business Verification</span>
                                 )}
                             </Badge>
                         </div>
 
                         <div className="flex flex-col md:flex-row items-center gap-8">
                             <div className="relative group/avatar">
-                                <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-gradient-to-br from-purple-600 to-blue-600 p-1">
-                                    <div className="w-full h-full rounded-[1.4rem] bg-[#030303] flex items-center justify-center overflow-hidden">
-                                        <User size={64} className="text-white/20" />
+                                <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 p-1 shadow-xl shadow-indigo-500/20">
+                                    <div className="w-full h-full rounded-full bg-[#030303] flex items-center justify-center overflow-hidden border border-white/10">
+                                        <User size={64} className="text-white/80" />
                                     </div>
                                 </div>
-                                <button className="absolute bottom-2 right-2 p-2 bg-white text-black rounded-xl shadow-xl hover:scale-110 transition-all opacity-0 group-hover/avatar:opacity-100">
+                                <button className="absolute bottom-2 right-2 p-2 bg-white text-black rounded-full shadow-xl hover:scale-110 transition-all opacity-100 border border-white/20">
                                     <Camera size={18} />
                                 </button>
                             </div>
@@ -199,13 +199,20 @@ export default function OwnerProfilePage() {
                                             <p className="text-xs text-gray-500">Verified on Jan 12, 2026</p>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-3 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                                        <AlertCircle size={18} className="text-amber-400" />
+                                        <div>
+                                            <p className="text-sm font-medium">Verification Status</p>
+                                            <p className="text-xs text-gray-500">Awaiting final admin review on tax and identity documentation.</p>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </motion.div>
                     </div>
 
                     {/* Right Column: Detailed Info */}
-                    <div className="md:col-span-2 space-y-8">
+                    <div className="md:col-span-2 w-full space-y-8">
                         <motion.div variants={itemVariants}>
                             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-xl rounded-3xl overflow-hidden pt-4">
                                 <CardHeader>
@@ -232,7 +239,7 @@ export default function OwnerProfilePage() {
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Business Address</label>
                                         <div className="flex items-center gap-3 text-gray-200">
                                             <MapPin size={18} className="text-purple-400" />
-                                            <span className="font-medium">{profile?.address || "Address details not provided"}</span>
+                                            <span className="font-medium">{profile?.address || profile?.parkinglot?.[0]?.address || "Address details not provided"}</span>
                                         </div>
                                     </div>
 

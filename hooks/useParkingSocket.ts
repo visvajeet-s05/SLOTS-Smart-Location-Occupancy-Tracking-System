@@ -54,6 +54,8 @@ export function useParkingSocket({
 }: UseParkingSocketOptions) {
   const [isConnected, setIsConnected] = useState(false)
   const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(null)
+  const [lastDataTimestamp, setLastDataTimestamp] = useState<Date | null>(null)
+  const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -111,6 +113,7 @@ export function useParkingSocket({
         ws.onopen = () => {
           console.log('✅ WebSocket connected')
           setIsConnected(true)
+          setReconnectAttempts(0) // Reset attempts on successful connection
           onConnectRef.current?.()
 
           // Subscribe to this parking lot as CUSTOMER, or globally if no lotId
@@ -120,12 +123,12 @@ export function useParkingSocket({
             role: 'CUSTOMER'
           }))
 
-          // Start heartbeat monitoring
+          // Start heartbeat monitoring with ping every 15 seconds for faster failure detection
           heartbeatIntervalRef.current = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'PING' }))
             }
-          }, 30000) // Ping every 30 seconds
+          }, 15000) // Ping every 15 seconds (reduced from 30s for faster detection)
         }
 
         ws.onmessage = (event) => {
@@ -136,12 +139,14 @@ export function useParkingSocket({
               // Process updates for this parking lot or globally
               if (!lotId || data.lotId === lotId) {
                 console.log(`📝 Customer received slot update: ${data.slotId} -> ${data.status}`)
+                setLastDataTimestamp(new Date(data.timestamp))
                 onSlotUpdateRef.current?.(data)
               }
             } else if (data.type === 'BULK_SLOT_UPDATE') {
               // Process bulk updates for this parking lot or globally
               if (!lotId || data.lotId === lotId) {
                 console.log(`📦 Customer received bulk update: ${data.action} (${data.updatedCount} slots)`)
+                setLastDataTimestamp(new Date(data.timestamp))
                 onBulkUpdateRef.current?.(data)
               }
             } else if (data.type === 'HEARTBEAT') {
@@ -150,6 +155,7 @@ export function useParkingSocket({
               setLastHeartbeat(new Date())
             } else if (data.type === 'CONNECTED') {
               console.log('🔗 WebSocket connection confirmed')
+              setReconnectAttempts(0) // Reset on successful connection
             }
           } catch (error) {
             console.error('❌ Error parsing WebSocket message:', error)
@@ -167,15 +173,19 @@ export function useParkingSocket({
             heartbeatIntervalRef.current = null
           }
 
-          // Attempt to reconnect after 5 seconds
+          // Exponential backoff: 2s, 4s, 8s, 16s, max 30s for faster reconnection
+          const backoffDelay = Math.min(2000 * Math.pow(2, reconnectAttempts), 30000)
+          setReconnectAttempts(prev => prev + 1)
+          
+          console.log(`🔄 Attempting to reconnect in ${backoffDelay/1000}s (attempt ${reconnectAttempts + 1})`)
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('🔄 Attempting to reconnect...')
             connect()
-          }, 5000)
+          }, backoffDelay)
         }
 
         ws.onerror = (error) => {
-          console.error('❌ WebSocket error:', error)
+          // WebSocket errors are expected when server is not running
+          // Silently ignore to avoid console noise in development
         }
 
       } catch (error) {
@@ -208,6 +218,8 @@ export function useParkingSocket({
 
   return {
     isConnected,
-    lastHeartbeat
+    lastHeartbeat,
+    lastDataTimestamp,
+    reconnectAttempts
   }
 }

@@ -1,0 +1,25 @@
+# SLOTS Vision Engine Requirements
+# Python dependencies for the two-stage ALPR & VLM pipeline
+
+# Core Computer Vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# YOLOv8 Object Detection
+ultralytics>=8.0.0
+
+# PaddleOCR for License Plate Recognition
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0
+
+# Optional: VLM Integration
+# ollama>=0.1.0  # Uncomment for Ollama VLM support
+# transformers>=4.30.0  # Uncomment for HuggingFace VLM support
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+pillow>=10.0.0
+
+# Async support
+asyncio-mqtt>=0.13.0
