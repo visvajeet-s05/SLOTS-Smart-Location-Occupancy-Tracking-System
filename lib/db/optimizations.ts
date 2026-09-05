@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 
 /**
  * Database Query Performance Tuning Module
@@ -6,15 +6,7 @@ import { PrismaClient } from "@prisma/client"
  * Configures connection pooling for production scaling
  */
 
-// Prisma Client with production-ready connection pool configuration
-export const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === "production" ? ["error", "warn"] : ["query", "error", "warn"],
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-})
+export { prisma }
 
 /**
  * Composite index verification for high-frequency query paths

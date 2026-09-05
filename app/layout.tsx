@@ -30,6 +30,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <title>SLOTS - Smart Location Occupancy Tracking System</title>
+        <meta name="description" content="Real-time smart parking locator, slot booking, and occupancy tracking system with live dynamic pricing and multi-role dashboards." />
+        <meta property="og:title" content="SLOTS - Smart Location Occupancy Tracking System" />
+        <meta property="og:description" content="Real-time smart parking locator, slot booking, and occupancy tracking system with live dynamic pricing and multi-role dashboards." />
         {/* Preload critical routes */}
         <link rel="preload" href="/login" as="document" />
         <link rel="preload" href="/dashboard" as="document" />

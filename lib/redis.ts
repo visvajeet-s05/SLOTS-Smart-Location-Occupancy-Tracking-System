@@ -4,16 +4,36 @@ const IS_BUILD = process.env.NEXT_PHASE === 'phase-production-build';
 
 let redisInstance: Redis | null = null;
 
+// In-memory store for fallback/development
+const memoryStore = new Map<string, string>();
+
+function createMemoryRedis(): any {
+    return {
+        get: async (k: string) => memoryStore.get(k) ?? null,
+        set: async (k: string, v: string) => { memoryStore.set(k, String(v)); return "OK"; },
+        setex: async (k: string, seconds: number, v: string) => { memoryStore.set(k, String(v)); return "OK"; },
+        del: async (k: string) => (memoryStore.delete(k) ? 1 : 0),
+        incr: async (k: string) => {
+            const n = (parseInt(memoryStore.get(k) || "0", 10) || 0) + 1;
+            memoryStore.set(k, String(n));
+            return n;
+        },
+        expire: async () => 1,
+        ttl: async () => 3600,
+        exists: async (k: string) => (memoryStore.has(k) ? 1 : 0),
+        keys: async (pattern: string) => Array.from(memoryStore.keys()),
+        on: () => {},
+        connect: async () => {},
+        disconnect: () => {},
+    };
+}
+
 export const getRedis = () => {
     if (redisInstance) return redisInstance;
     
-    // During build or if no URL is provided, return a mock or handle gracefully
+    // During build or if no URL is provided, return memory mock
     if (IS_BUILD || !REDIS_URL) {
-        console.warn("⚠️ Redis: Skipping connection (Build Mode or No REDIS_URL)");
-        // Return a proxy that ignores calls to prevent crashing during build
-        return new Proxy({}, {
-            get: () => () => Promise.resolve(null)
-        }) as unknown as Redis;
+        return createMemoryRedis() as unknown as Redis;
     }
 
     redisInstance = new Redis(REDIS_URL, {

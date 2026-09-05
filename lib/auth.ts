@@ -1,9 +1,7 @@
 import { getServerSession } from "next-auth"
 import bcrypt from "bcryptjs"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "./prisma"
 import { authOptions } from "./auth-options"
-
-const prisma = new PrismaClient()
 
 type Role = "SUPER_ADMIN" | "CUSTOMER" | "OWNER"
 

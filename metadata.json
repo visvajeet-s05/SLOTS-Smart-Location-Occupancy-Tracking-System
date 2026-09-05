@@ -1,0 +1,6 @@
+{
+  "name": "SLOTS - Smart Location Occupancy Tracking System",
+  "description": "Real-time smart parking locator, slot booking, and occupancy tracking system with live dynamic pricing and multi-role dashboards.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
