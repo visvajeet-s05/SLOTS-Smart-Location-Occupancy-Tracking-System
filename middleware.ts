@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { applyRateLimit, RATE_LIMIT_TIERS } from "@/lib/security/rate-limiter"
+import { createClient as updateSupabaseSession } from "@/utils/supabase/middleware"
 
 type Role = "SUPER_ADMIN" | "OWNER" | "CUSTOMER"
 
@@ -30,6 +31,9 @@ const routeAccessRules: Record<string, Role[]> = {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   
+  // Refresh Supabase session cookies
+  const supabaseResponse = updateSupabaseSession(req)
+  
   // Allow public routes
   if (
     pathname === "/" ||
@@ -37,13 +41,13 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/todos") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
     pathname.startsWith("/static") ||
     pathname.includes(".")
   ) {
-    console.log("🔓 Middleware: Allowing public route:", pathname)
-    return NextResponse.next()
+    return supabaseResponse
   }
   
   // Allow /api/health to bypass rate limiting and auth
@@ -154,7 +158,7 @@ export async function middleware(req: NextRequest) {
   }
   
   console.log("🔐 Middleware: Access granted")
-  return NextResponse.next()
+  return supabaseResponse
 }
 
 export const config = {

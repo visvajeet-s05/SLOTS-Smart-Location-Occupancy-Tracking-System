@@ -25,11 +25,20 @@ const mockModelProxy = new Proxy(noOpHandler, {
 function createSafePrisma(): any {
   let realClient: any = null
   try {
-    if (process.env.DATABASE_URL) {
-      realClient = new PrismaClient({
-        log: ["error"],
-      })
-    }
+    const SUPABASE_DB_URL = "postgresql://postgres.trtowyvsxtwzakqngfsp:81BAgHaNsjdvgBZ1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require";
+    const envUrl = process.env.DATABASE_URL;
+    const dbUrl = (envUrl && !envUrl.includes("HOST:PORT") && !envUrl.startsWith("mysql://"))
+      ? envUrl
+      : SUPABASE_DB_URL;
+
+    realClient = new PrismaClient({
+      datasources: {
+        db: {
+          url: dbUrl,
+        },
+      },
+      log: ["error"],
+    })
   } catch (err) {
     console.warn("[AI Studio] PrismaClient initialization warning — using fallback", err)
   }
