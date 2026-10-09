@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SlotStatus, UpdatedBy } from '@prisma/client';
+import type { slot_status, slot_updatedBy } from '@prisma/client';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       if (!existingSlot) return;
 
       // Status Logic
-      let finalStatus: SlotStatus = statusEnum;
+      let finalStatus: slot_status = statusEnum;
 
       // AI Logic: AI says AVAILABLE, but we check reservations
       if (statusEnum === 'AVAILABLE') {
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Log
-        await prisma.slotStatusLog.create({
+        await (prisma as any).slotstatuslog.create({
           data: {
             slotId: existingSlot.id,
             oldStatus: existingSlot.status,

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { processSensorFusion, type SensorInput, type FusionResult } from "@/lib/vision/sensor-fusion"
-import { PrismaClient, SlotStatus } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
 
 const sensorFusionSchema = z.object({
   slotId: z.string(),

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { PrismaClient, SlotStatus } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
 
 const batchSyncSchema = z.object({
   events: z.array(
@@ -67,12 +65,12 @@ export async function POST(req: NextRequest) {
           // Only update if event timestamp is newer than stored timestamp
           if (eventTimestamp > slot.updatedAt) {
             // Update slot state
-            const newStatus = event.state === 1 ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE
+            const newStatus = event.state === 1 ? 'OCCUPIED' : 'AVAILABLE'
 
             await tx.slot.update({
               where: { id: event.slotId },
               data: {
-                status: newStatus,
+                status: newStatus as any,
                 updatedAt: eventTimestamp,
               },
             })

@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 const prisma = new PrismaClient()
 
@@ -35,12 +38,14 @@ async function seedTestVehicles() {
 
     const vehicle1 = await prisma.vehicle.create({
       data: {
+        id: `vehicle-${Date.now()}-1`,
         userId: user.id,
         make: 'Toyota',
         model: 'Fortuner',
         licensePlate: 'TN-01-AB-1234',
         color: 'White',
-        isActive: true
+        isActive: true,
+        updatedAt: new Date()
       }
     })
 
@@ -48,12 +53,14 @@ async function seedTestVehicles() {
 
     const vehicle2 = await prisma.vehicle.create({
       data: {
+        id: `vehicle-${Date.now()}-2`,
         userId: user.id,
         make: 'Hyundai',
         model: 'Verna',
         licensePlate: 'TN-07-CD-5678',
         color: 'Silver',
-        isActive: false
+        isActive: false,
+        updatedAt: new Date()
       }
     })
 

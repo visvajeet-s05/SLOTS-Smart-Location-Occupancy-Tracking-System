@@ -25,16 +25,17 @@ const mockModelProxy = new Proxy(noOpHandler, {
 function createSafePrisma(): any {
   let realClient: any = null
   try {
-    const SUPABASE_DB_URL = "postgresql://postgres.trtowyvsxtwzakqngfsp:81BAgHaNsjdvgBZ1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require";
     const envUrl = process.env.DATABASE_URL;
-    const dbUrl = (envUrl && !envUrl.includes("HOST:PORT") && !envUrl.startsWith("mysql://"))
-      ? envUrl
-      : SUPABASE_DB_URL;
+    
+    if (!envUrl) {
+      console.warn("[AI Studio] DATABASE_URL not found in environment variables")
+      return mockModelProxy
+    }
 
     realClient = new PrismaClient({
       datasources: {
         db: {
-          url: dbUrl,
+          url: envUrl,
         },
       },
       log: ["error"],

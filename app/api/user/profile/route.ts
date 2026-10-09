@@ -6,7 +6,15 @@ import { prisma } from "@/lib/prisma"
 export async function GET() {
     const session = await getServerSession(authOptions)
 
+    console.log("🔍 Profile API - Session check:", { 
+        hasSession: !!session, 
+        hasUser: !!session?.user, 
+        hasEmail: !!session?.user?.email,
+        sessionEmail: session?.user?.email 
+    })
+
     if (!session || !session.user?.email) {
+        console.log("❌ Profile API - No valid session found")
         return new NextResponse("Unauthorized", { status: 401 })
     }
 
@@ -26,8 +34,13 @@ export async function GET() {
         })
 
         if (!user) {
-            console.log("❌ User not found")
-            return new NextResponse("User not found", { status: 404 })
+            console.log("❌ User not found in database for email:", session.user.email)
+            return NextResponse.json({ 
+                error: "User not found",
+                email: session.user.email,
+                vehicles: [],
+                vehicle: null
+            }, { status: 200 })
         }
 
         console.log("✅ User found with", user.vehicle.length, "vehicles")

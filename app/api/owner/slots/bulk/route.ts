@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { SlotStatus, UpdatedBy } from "@prisma/client"
+import type { slot_status, slot_updatedBy } from "@prisma/client"
 
 // WebSocket server URL
 const WS_SERVER = process.env.WS_SERVER_URL || "ws://localhost:4000"
@@ -28,35 +28,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine target updates based on action
-    let targetStatus: SlotStatus | undefined
+    let targetStatus: slot_status | undefined
     let targetPrice: number | undefined
     let targetRows: string[] = []
 
     switch (action) {
       case "OPEN_ALL":
-        targetStatus = SlotStatus.AVAILABLE
+        targetStatus = "AVAILABLE" as slot_status
         break
       case "CLOSE_ALL":
-        targetStatus = SlotStatus.CLOSED
+        targetStatus = "CLOSED" as slot_status
         break
       case "OPEN_ROW":
         if (!row) return NextResponse.json({ error: "Row required" }, { status: 400 })
-        targetStatus = SlotStatus.AVAILABLE
+        targetStatus = "AVAILABLE" as slot_status
         targetRows = [row]
         break
       case "CLOSE_ROW":
         if (!row) return NextResponse.json({ error: "Row required" }, { status: 400 })
-        targetStatus = SlotStatus.CLOSED
+        targetStatus = "CLOSED" as slot_status
         targetRows = [row]
         break
       case "MAINTENANCE_ROW":
         if (!row) return NextResponse.json({ error: "Row required" }, { status: 400 })
-        targetStatus = SlotStatus.DISABLED
+        targetStatus = "DISABLED" as slot_status
         targetRows = [row]
         break
       case "UPDATE_STATUS":
         if (!status) return NextResponse.json({ error: "Status required" }, { status: 400 })
-        targetStatus = status as SlotStatus
+        targetStatus = status as slot_status
         if (row) targetRows = [row]
         break
       case "UPDATE_PRICE":
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     // Only filter RESERVED if we are changing STATUS (to avoid kicking out active users)
     if (targetStatus) {
-      whereClause.status = { not: SlotStatus.RESERVED }
+      whereClause.status = { not: "RESERVED" }
     }
 
     // Add row filter if specified
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare update data
     const updateData: any = {
-      updatedBy: UpdatedBy.OWNER
+      updatedBy: "OWNER"
     }
     if (targetStatus) {
       updateData.status = targetStatus
@@ -122,12 +122,12 @@ export async function POST(request: NextRequest) {
     // Create status logs ONLY if status changed
     if (targetStatus) {
       const logPromises = slotsToUpdate.map(slot =>
-        prisma.slotStatusLog.create({
+        (prisma as any).slotstatuslog.create({
           data: {
             slotId: slot.id,
             oldStatus: slot.status,
-            newStatus: targetStatus as SlotStatus,
-            updatedBy: UpdatedBy.OWNER,
+            newStatus: targetStatus as slot_status,
+            updatedBy: "OWNER",
             aiConfidence: 100
           }
         })

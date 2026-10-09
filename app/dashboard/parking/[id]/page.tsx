@@ -109,12 +109,19 @@ function CustomerParkingContent() {
   // Fetch user's vehicles for vehicle selection
   useEffect(() => {
     const fetchVehicles = async () => {
+      // Only fetch if user is authenticated
+      if (!session?.user?.email) {
+        console.log("🚗 No session, skipping vehicle fetch")
+        setVehicles([])
+        return
+      }
+
       try {
         const res = await fetch("/api/user/profile")
         if (res.ok) {
           const data = await res.json()
           console.log("🚗 Vehicle data from API:", data)
-          
+
           if (data.vehicles && data.vehicles.length > 0) {
             console.log("🚗 Using vehicles array:", data.vehicles)
             setVehicles(data.vehicles)
@@ -135,17 +142,21 @@ function CustomerParkingContent() {
               setSelectedVehicle(data.vehicle)
             }
           } else {
-            console.log("🚗 No vehicles found in response")
+            console.log("🚗 No vehicles found in response - user may need to add vehicles")
+            setVehicles([])
           }
         } else {
           console.error("🚗 Failed to fetch profile:", res.status)
+          // Handle error gracefully - set empty vehicles array
+          setVehicles([])
         }
       } catch (error) {
         console.error("Failed to fetch vehicles:", error)
+        setVehicles([])
       }
     }
     fetchVehicles()
-  }, [])
+  }, [session])
   const { isConnected: wsConnected, lastHeartbeat, lastDataTimestamp, reconnectAttempts } = useParkingSocket({
     lotId: lotId,
     onSlotUpdate: (data) => {

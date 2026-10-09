@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { SlotStatus, UpdatedBy } from "@prisma/client"
+import type { slot_status, slot_updatedBy } from "@prisma/client"
 
 // WebSocket server URL
 const WS_SERVER = process.env.WS_SERVER_URL || "ws://localhost:4000"
@@ -28,12 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the slot and verify it belongs to the specified lot
-    const slot = await prisma.slot.findFirst({
+    const slot = await (prisma as any).slot.findFirst({
       where: { 
         id: slotId,
         lotId: lotId 
       },
-      include: { parkingLot: true }
+      include: { parkinglot: true }
     })
 
     if (!slot) {
@@ -47,22 +47,22 @@ export async function POST(request: NextRequest) {
     const oldStatus = slot.status
 
     // Update slot in database
-    const updatedSlot = await prisma.slot.update({
+    const updatedSlot = await (prisma as any).slot.update({
       where: { id: slotId },
       data: {
-        status: status as SlotStatus,
-        updatedBy: UpdatedBy.OWNER,
+        status: status as any,
+        updatedBy: "OWNER",
         aiConfidence: confidence
       }
     })
 
     // Create status log entry
-    await prisma.slotStatusLog.create({
+    await (prisma as any).slotstatuslog.create({
       data: {
         slotId: slotId,
         oldStatus: oldStatus,
-        newStatus: status as SlotStatus,
-        updatedBy: UpdatedBy.OWNER,
+        newStatus: status as any,
+        updatedBy: "OWNER",
         aiConfidence: confidence
       }
     })

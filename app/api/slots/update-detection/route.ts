@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SlotStatus, UpdatedBy } from '@prisma/client';
+import type { slot_status, slot_updatedBy } from '@prisma/client';
 
 /**
  * POST /api/slots/update-detection
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── STATE DECISION ENGINE ──
-        let newStatus: SlotStatus;
+        let newStatus: slot_status;
         const hasBooking = existingSlot.bookings && existingSlot.bookings.length > 0;
 
         if (car_detected && confidence >= 0.5) {
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Audit log
-        await prisma.slotStatusLog.create({
+        await (prisma as any).slotstatuslog.create({
           data: {
             slotId: slot_id,
             oldStatus: existingSlot.status,

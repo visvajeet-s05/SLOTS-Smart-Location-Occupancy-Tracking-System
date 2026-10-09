@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import prisma from "../lib/prisma"
 
 interface AuditLogOptions {
   userId?: string
@@ -24,7 +22,7 @@ export async function logAuditEvent(options: AuditLogOptions): Promise<void> {
         action: options.action,
         targetResource: options.resource || "unknown",
         ipAddress: options.ipAddress || "unknown",
-        metadataJson: options.details as any,
+        metadataJson: options.details ? JSON.stringify(options.details) : "{}",
       },
     })
   } catch (error) {

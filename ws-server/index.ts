@@ -1,8 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
-import { PrismaClient, SlotStatus, UpdatedBy } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import type { slot_status, slot_updatedBy } from "@prisma/client";
 import { createServer, IncomingMessage, ServerResponse } from "http";
-
-const prisma = new PrismaClient();
 
 // Role type for subscription management
 type Role = "OWNER" | "CUSTOMER";
@@ -20,9 +19,9 @@ const BATCH_INTERVAL = 100; // Minimal buffer for extreme high-frequency bursts 
 type SlotUpdate = {
   lotSlug: string;
   slotNumber: number;
-  status: SlotStatus;
+  status: slot_status | string;
   confidence?: number;
-  source: UpdatedBy;
+  source: slot_updatedBy | string;
 };
 
 
@@ -81,9 +80,9 @@ const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 const wss = new WebSocketServer({ server });
 
 // Slot Priority Logic (IMPORTANT)
-function canOverride(existing: UpdatedBy, incoming: UpdatedBy): boolean {
+function canOverride(existing: any, incoming: any): boolean {
   const priority: Record<string, number> = { OWNER: 3, CUSTOMER: 2, AI: 1 };
-  return priority[incoming] >= priority[existing];
+  return (priority[incoming] || 0) >= (priority[existing] || 0);
 }
 
 
@@ -222,9 +221,9 @@ const heartbeatInterval = setInterval(() => {
 async function processImmediateUpdate(data: SlotUpdate) {
   try {
     // Find the parking lot
-    const lot = await prisma.parkinglot.findUnique({
+    const lot = await (prisma as any).parkinglot.findUnique({
       where: { id: data.lotSlug },
-      include: { slots: true },
+      include: { slot: true },
     });
 
     if (!lot) {
@@ -233,7 +232,7 @@ async function processImmediateUpdate(data: SlotUpdate) {
     }
 
     // Find the specific slot
-    const slot = lot.slots.find((s: any) => s.slotNumber === data.slotNumber);
+    const slot = (lot.slot || []).find((s: any) => s.slotNumber === data.slotNumber);
     if (!slot) {
       console.error("❌ Slot not found:", data.slotNumber);
       return;
@@ -246,17 +245,17 @@ async function processImmediateUpdate(data: SlotUpdate) {
     }
 
     // Update slot in DB
-    await prisma.slot.update({
+    await (prisma as any).slot.update({
       where: { id: slot.id },
       data: {
-        status: data.status,
+        status: data.status as any,
         aiConfidence: data.confidence ?? 100,
-        updatedBy: data.source,
+        updatedBy: data.source as any,
       },
     });
 
     // Create status log entry
-    await prisma.slotStatusLog.create({
+    await (prisma as any).slotstatuslog.create({
       data: {
         slotId: slot.id,
         oldStatus: slot.status,

@@ -7,9 +7,8 @@
  * ============================================================
  */
 
-import { PrismaClient, SlotStatus, UpdatedBy } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
+import type { slot_status, slot_updatedBy } from "@prisma/client";
 
 // ── Config ──────────────────────────────────────────────────
 const RESERVATION_TIMEOUT_MINUTES = 15;
@@ -49,19 +48,19 @@ export async function createReservation(
   await prisma.slot.update({
     where: { id: slotId },
     data: {
-      status: SlotStatus.RESERVED,
-      updatedBy: UpdatedBy.CUSTOMER,
+      status: "RESERVED" as slot_status,
+      updatedBy: "CUSTOMER" as slot_updatedBy,
       aiConfidence: 100,
     },
   });
 
   // Log status change
-  await prisma.slotStatusLog.create({
+  await prisma.slotstatuslog.create({
     data: {
       slotId,
-      oldStatus: SlotStatus.AVAILABLE,
-      newStatus: SlotStatus.RESERVED,
-      updatedBy: UpdatedBy.CUSTOMER,
+      oldStatus: "AVAILABLE",
+      newStatus: "RESERVED",
+      updatedBy: "CUSTOMER",
       aiConfidence: 100,
     },
   });
@@ -87,18 +86,18 @@ export async function cancelReservation(slotId: string): Promise<boolean> {
   await prisma.slot.update({
     where: { id: slotId },
     data: {
-      status: SlotStatus.AVAILABLE,
-      updatedBy: UpdatedBy.OWNER,
+      status: "AVAILABLE" as slot_status,
+      updatedBy: "OWNER" as slot_updatedBy,
       aiConfidence: 100,
     },
   });
 
-  await prisma.slotStatusLog.create({
+  await prisma.slotstatuslog.create({
     data: {
       slotId,
-      oldStatus: SlotStatus.RESERVED,
-      newStatus: SlotStatus.AVAILABLE,
-      updatedBy: UpdatedBy.OWNER,
+      oldStatus: "RESERVED",
+      newStatus: "AVAILABLE",
+      updatedBy: "OWNER",
       aiConfidence: 100,
     },
   });
@@ -132,18 +131,18 @@ export async function checkReservationTimeout(slotId: string): Promise<boolean> 
     await prisma.slot.update({
       where: { id: slotId },
       data: {
-        status: SlotStatus.AVAILABLE,
-        updatedBy: UpdatedBy.AI,
+        status: "AVAILABLE" as slot_status,
+        updatedBy: "AI" as slot_updatedBy,
         aiConfidence: 100,
       },
     });
 
-    await prisma.slotStatusLog.create({
+    await prisma.slotstatuslog.create({
       data: {
         slotId,
-        oldStatus: SlotStatus.RESERVED,
-        newStatus: SlotStatus.AVAILABLE,
-        updatedBy: UpdatedBy.AI,
+        oldStatus: "RESERVED",
+        newStatus: "AVAILABLE",
+        updatedBy: "AI",
         aiConfidence: 100,
       },
     });
@@ -177,23 +176,27 @@ export function hasActiveReservation(slotId: string): boolean {
 export async function initializeReservations() {
   console.log("🔄 Initializing reservation manager...");
 
-  const reservedSlots = await prisma.slot.findMany({
-    where: { status: SlotStatus.RESERVED },
-  });
+  try {
+    const reservedSlots = await prisma.slot.findMany({
+      where: { status: "RESERVED" as slot_status },
+    });
 
-  for (const slot of reservedSlots) {
-    const expiresAt = new Date(Date.now() + RESERVATION_TIMEOUT_MINUTES * 60 * 1000);
-    const reservation: Reservation = {
-      slotId: slot.id,
-      userId: "unknown",
-      reservedAt: new Date(),
-      expiresAt,
-    };
-    activeReservations.set(slot.id, reservation);
-    _scheduleTimeoutCheck(slot.id, expiresAt);
+    for (const slot of reservedSlots) {
+      const expiresAt = new Date(Date.now() + RESERVATION_TIMEOUT_MINUTES * 60 * 1000);
+      const reservation: Reservation = {
+        slotId: slot.id,
+        userId: "unknown",
+        reservedAt: new Date(),
+        expiresAt,
+      };
+      activeReservations.set(slot.id, reservation);
+      _scheduleTimeoutCheck(slot.id, expiresAt);
+    }
+
+    console.log(`✅ Reservation manager ready — ${reservedSlots.length} active reservations`);
+  } catch (err: any) {
+    console.warn("⚠️ Reservation manager initialization skipped / deferred:", err?.message || err);
   }
-
-  console.log(`✅ Reservation manager ready — ${reservedSlots.length} active reservations`);
 }
 
 // ─────────────────────────────────────────────────────────────

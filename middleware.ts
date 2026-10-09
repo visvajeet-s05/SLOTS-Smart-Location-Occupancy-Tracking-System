@@ -16,7 +16,9 @@ const routeAccessRules: Record<string, Role[]> = {
   
   // Customer routes (default dashboard - accessible by all authenticated users)
   "/dashboard": ["CUSTOMER", "OWNER", "SUPER_ADMIN"],
+  "/dashboard/parking": ["CUSTOMER", "OWNER", "SUPER_ADMIN"],
   "/api/bookings": ["CUSTOMER", "OWNER", "SUPER_ADMIN"],
+  "/api/user": ["CUSTOMER", "OWNER", "SUPER_ADMIN"],
   
   // Owner routes
   "/dashboard/owner": ["OWNER", "SUPER_ADMIN"],

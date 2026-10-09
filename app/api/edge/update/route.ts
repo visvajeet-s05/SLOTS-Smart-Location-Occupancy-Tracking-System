@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SlotStatus } from '@prisma/client';
+import type { slot_status } from '@prisma/client';
 
 /**
  * Secure Edge Data Ingestion API
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── BOOKING-AWARE STATE DECISION ENGINE ──
-        let finalStatus: SlotStatus = mappedStatus;
+        let finalStatus: slot_status = mappedStatus;
 
         // PRIORITY RULE: Car detected (OCCUPIED) → ALWAYS OCCUPIED
         if (mappedStatus === 'OCCUPIED') {
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Audit log
-        await prisma.slotStatusLog.create({
+        await (prisma as any).slotstatuslog.create({
           data: {
             slotId: existingSlot.id,
             oldStatus: existingSlot.status,

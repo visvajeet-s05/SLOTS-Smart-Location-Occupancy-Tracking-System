@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import Stripe from "stripe"
+import type Stripe from "stripe"
+import { stripe } from "@/lib/stripe"
 import { handleStripeWebhook } from "@/lib/payments/stripe"
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-01-28.clover",
-})
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ""
 

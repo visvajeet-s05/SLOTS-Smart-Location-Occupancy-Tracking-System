@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "mysql"
+  url       = env("DATABASE_URL")
 }
 
 model booking {
@@ -29,33 +29,32 @@ model booking {
   allocatedSlotId               String?
   fineAmount                    Float           @default(0)
   idempotencyKey                String?         @unique
-  lotConfigSnapshot             String?         @db.LongText
+  lotConfigSnapshot             String?
   occupancyState                OccupancyState  @default(NOT_OCCUPIED)
   originalSlotId                String?
   overstayAmount                Float           @default(0)
   paymentStatus                 payment_status  @default(PENDING)
   refundAmount                  Float           @default(0)
   temporaryReassignmentReason   String?
-  user_booking_customerIdTouser user            @relation("booking_customerIdTouser", fields: [customerId], references: [id], map: "Booking_customerId_fkey")
-  user_booking_ownerIdTouser    user            @relation("booking_ownerIdTouser", fields: [ownerId], references: [id], map: "Booking_ownerId_fkey")
-  parkinglot                    parkinglot      @relation(fields: [parkingLotId], references: [id], map: "Booking_parkingLotId_fkey")
+  user_booking_customerIdTouser user            @relation("booking_customerIdTouser", fields: [customerId], references: [id])
+  user_booking_ownerIdTouser    user            @relation("booking_ownerIdTouser", fields: [ownerId], references: [id])
   parkingBay                    parkingbay?     @relation(fields: [parkingBayId], references: [id])
+  parkinglot                    parkinglot      @relation(fields: [parkingLotId], references: [id])
   slot                          slot?           @relation(fields: [slotId], references: [id])
 
-  @@index([customerId], map: "Booking_customerId_fkey")
+  @@index([customerId])
   @@index([slotId])
   @@index([originalSlotId])
   @@index([allocatedSlotId])
   @@index([parkingBayId])
-  @@index([ownerId], map: "Booking_ownerId_fkey")
-  @@index([parkingLotId], map: "Booking_parkingLotId_fkey")
+  @@index([ownerId])
+  @@index([parkingLotId])
   @@index([status])
   @@index([startTime])
   @@index([endTime])
   @@index([lockExpiresAt])
   @@index([idempotencyKey])
   @@index([slotId, status, startTime, endTime])
-  @@index([slotId, status, startTime, endTime], map: "booking_slot_status_time_idx")
 }
 
 model demandprediction {
@@ -80,12 +79,12 @@ model event {
   lng         Float?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime
-  parkinglot  parkinglot? @relation(fields: [lotId], references: [id], map: "Event_lotId_fkey")
+  parkinglot  parkinglot? @relation(fields: [lotId], references: [id])
 
-  @@index([endTime], map: "Event_endTime_idx")
-  @@index([eventType], map: "Event_eventType_idx")
-  @@index([lotId], map: "Event_lotId_idx")
-  @@index([startTime], map: "Event_startTime_idx")
+  @@index([endTime])
+  @@index([eventType])
+  @@index([lotId])
+  @@index([startTime])
 }
 
 model exchangerate {
@@ -106,9 +105,9 @@ model maintenanceschedule {
   endDate    DateTime
   reason     String
   createdAt  DateTime @default(now())
-  user       user     @relation(fields: [ownerId], references: [id], map: "MaintenanceSchedule_ownerId_fkey")
+  user       user     @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "MaintenanceSchedule_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownerincident {
@@ -119,9 +118,9 @@ model ownerincident {
   status       ownerincident_status @default(OPEN)
   createdAt    DateTime             @default(now())
   resolvedAt   DateTime?
-  ownerprofile ownerprofile         @relation(fields: [ownerId], references: [id], map: "OwnerIncident_ownerId_fkey")
+  ownerprofile ownerprofile         @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerIncident_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownerinvoice {
@@ -135,9 +134,9 @@ model ownerinvoice {
   pdfUrl       String?
   platformFee  Float
   year         Int
-  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id], map: "OwnerInvoice_ownerId_fkey")
+  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerInvoice_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownermaintenance {
@@ -147,14 +146,14 @@ model ownermaintenance {
   endTime      DateTime
   reason       String
   createdAt    DateTime     @default(now())
-  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id], map: "OwnerMaintenance_ownerId_fkey")
+  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerMaintenance_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownerprofile {
   id                   String                @id
-  userId               String                @unique(map: "OwnerProfile_userId_key")
+  userId               String                @unique
   businessName         String
   phone                String
   status               ownerprofile_status   @default(OWNER_ONBOARDING)
@@ -164,7 +163,7 @@ model ownerprofile {
   ownerincident        ownerincident[]
   ownerinvoice         ownerinvoice[]
   ownermaintenance     ownermaintenance[]
-  user                 user                  @relation(fields: [userId], references: [id], map: "OwnerProfile_userId_fkey")
+  user                 user                  @relation(fields: [userId], references: [id])
   ownersettlement      ownersettlement[]
   ownerstaff           ownerstaff[]
   ownersupportticket   ownersupportticket[]
@@ -179,9 +178,9 @@ model ownersettlement {
   amount       Float
   referenceId  String
   settledAt    DateTime
-  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id], map: "OwnerSettlement_ownerId_fkey")
+  ownerprofile ownerprofile @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerSettlement_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownerstaff {
@@ -192,9 +191,9 @@ model ownerstaff {
   role         ownerstaff_role
   active       Boolean         @default(true)
   createdAt    DateTime        @default(now())
-  ownerprofile ownerprofile    @relation(fields: [ownerId], references: [id], map: "OwnerStaff_ownerId_fkey")
+  ownerprofile ownerprofile    @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerStaff_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownersupportticket {
@@ -204,21 +203,21 @@ model ownersupportticket {
   message      String
   status       ownersupportticket_status @default(OPEN)
   createdAt    DateTime                  @default(now())
-  ownerprofile ownerprofile              @relation(fields: [ownerId], references: [id], map: "OwnerSupportTicket_ownerId_fkey")
+  ownerprofile ownerprofile              @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "OwnerSupportTicket_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model ownerverification {
   id              String       @id
-  ownerId         String       @unique(map: "OwnerVerification_ownerId_key")
+  ownerId         String       @unique
   documentType    String
   documentUrl     String
   submittedAt     DateTime     @default(now())
   reviewedByAdmin String?
   reviewedAt      DateTime?
   rejectionReason String?
-  ownerprofile    ownerprofile @relation(fields: [ownerId], references: [id], map: "OwnerVerification_ownerId_fkey")
+  ownerprofile    ownerprofile @relation(fields: [ownerId], references: [id])
 }
 
 model parkingincident {
@@ -228,9 +227,9 @@ model parkingincident {
   description String
   status      parkingincident_status @default(OPEN)
   createdAt   DateTime               @default(now())
-  user        user                   @relation(fields: [ownerId], references: [id], map: "ParkingIncident_ownerId_fkey")
+  user        user                   @relation(fields: [ownerId], references: [id])
 
-  @@index([ownerId], map: "ParkingIncident_ownerId_fkey")
+  @@index([ownerId])
 }
 
 model parkinglot {
@@ -256,27 +255,27 @@ model parkinglot {
   event         event[]
   mediafile     mediafile[]
   parkinglevel  parkinglevel[]
-  ownerprofile  ownerprofile      @relation(fields: [ownerId], references: [id], onDelete: Cascade, map: "ParkingLot_ownerId_fkey")
+  ownerprofile  ownerprofile      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   parkingSite   parkingsite?      @relation(fields: [parkingSiteId], references: [id])
   parkingslot   parkingslot[]
   priceaudit    priceaudit[]
   pricingrule   pricingrule[]
   slot          slot[]
 
-  @@index([ownerId], map: "ParkingLot_ownerId_fkey")
+  @@index([ownerId])
   @@index([parkingSiteId])
 }
 
 model parkingsetupprogress {
   id            String       @id
-  ownerId       String       @unique(map: "ParkingSetupProgress_ownerId_key")
+  ownerId       String       @unique
   locationDone  Boolean      @default(false)
   slotsDone     Boolean      @default(false)
   pricingDone   Boolean      @default(false)
   amenitiesDone Boolean      @default(false)
   submitted     Boolean      @default(false)
   lastStep      String?
-  ownerprofile  ownerprofile @relation(fields: [ownerId], references: [id], map: "ParkingSetupProgress_ownerId_fkey")
+  ownerprofile  ownerprofile @relation(fields: [ownerId], references: [id])
 }
 
 model parkingslot {
@@ -286,9 +285,9 @@ model parkingslot {
   type         parkingslot_type
   isActive     Boolean          @default(true)
   createdAt    DateTime         @default(now())
-  parkinglot   parkinglot       @relation(fields: [parkingLotId], references: [id], onDelete: Cascade, map: "ParkingSlot_parkingLotId_fkey")
+  parkinglot   parkinglot       @relation(fields: [parkingLotId], references: [id], onDelete: Cascade)
 
-  @@index([parkingLotId], map: "ParkingSlot_parkingLotId_fkey")
+  @@index([parkingLotId])
 }
 
 model payment {
@@ -343,14 +342,14 @@ model pricingrule {
   updatedAt    DateTime
   currentPrice Float?
   lastUpdated  DateTime?
-  parkinglot   parkinglot @relation(fields: [parkingLotId], references: [id], onDelete: Cascade, map: "PricingRule_parkingLotId_fkey")
+  parkinglot   parkinglot @relation(fields: [parkingLotId], references: [id], onDelete: Cascade)
 
-  @@index([parkingLotId], map: "PricingRule_parkingLotId_fkey")
+  @@index([parkingLotId])
 }
 
 model refund {
   id        String   @id
-  paymentId String   @unique(map: "Refund_paymentId_key")
+  paymentId String   @unique
   amount    Float
   txHash    String?
   reason    String
@@ -388,7 +387,7 @@ model subscription {
 model user {
   id                               String                @id @default(cuid())
   name                             String?
-  email                            String                @unique(map: "User_email_key")
+  email                            String                @unique
   passwordHash                     String?
   password                         String?
   role                             user_role             @default(CUSTOMER)
@@ -421,9 +420,9 @@ model vehicle {
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   fastag       fastag?
-  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Vehicle_userId_fkey")
+  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Vehicle_userId_fkey")
+  @@index([userId])
 }
 
 model ComplianceViolation {
@@ -445,7 +444,7 @@ model ComplianceViolation {
   @@index([status])
   @@index([timestamp])
   @@index([levelId])
-  @@index([slotId], map: "compliance_violations_slotId_fkey")
+  @@index([slotId])
   @@map("compliance_violations")
 }
 
@@ -467,7 +466,7 @@ model LandownerSubmission {
   gpsLng                 Float
   plotAddress            String?
   avgHourlyRateINR       Float
-  surveyResult           String    @db.LongText
+  surveyResult           String
   status                 String    @default("PENDING_REVIEW")
   submittedAt            DateTime  @default(now())
   reviewedAt             DateTime?
@@ -498,13 +497,13 @@ model auditlog {
   action         String
   targetResource String
   ipAddress      String
-  metadataJson   String   @db.LongText
+  metadataJson   String
   timestamp      DateTime @default(now())
 
-  @@index([action], map: "AuditLog_action_idx")
-  @@index([actorId], map: "AuditLog_actorId_idx")
-  @@index([actorRole], map: "AuditLog_actorRole_idx")
-  @@index([timestamp], map: "AuditLog_timestamp_idx")
+  @@index([action])
+  @@index([actorId])
+  @@index([actorRole])
+  @@index([timestamp])
 }
 
 model camera {
@@ -524,13 +523,13 @@ model camera {
   lastCalibratedAt    DateTime?
   positionX           Float?
   positionY           Float?
-  parkinglevel        parkinglevel?       @relation(fields: [levelId], references: [id], map: "Camera_levelId_fkey")
-  parkinglot          parkinglot          @relation(fields: [lotId], references: [id], map: "Camera_lotId_fkey")
+  parkinglevel        parkinglevel?       @relation(fields: [levelId], references: [id])
+  parkinglot          parkinglot          @relation(fields: [lotId], references: [id])
   camerazonemapping   camerazonemapping[]
   slot                slot[]
 
-  @@index([levelId], map: "Camera_levelId_idx")
-  @@index([lotId], map: "Camera_lotId_idx")
+  @@index([levelId])
+  @@index([lotId])
 }
 
 model camerazonemapping {
@@ -539,11 +538,11 @@ model camerazonemapping {
   zoneCode  String
   priority  Int      @default(0)
   createdAt DateTime @default(now())
-  camera    camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade, map: "CameraZoneMapping_cameraId_fkey")
+  camera    camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
 
-  @@unique([cameraId, zoneCode], map: "CameraZoneMapping_cameraId_zoneCode_key")
-  @@index([cameraId], map: "CameraZoneMapping_cameraId_idx")
-  @@index([zoneCode], map: "CameraZoneMapping_zoneCode_idx")
+  @@unique([cameraId, zoneCode])
+  @@index([cameraId])
+  @@index([zoneCode])
 }
 
 model compliancealert {
@@ -555,17 +554,17 @@ model compliancealert {
   expectedPlateNumber String?
   severity            String
   status              String    @default("ACTIVE")
-  metadata            String    @db.LongText
+  metadata            String
   createdAt           DateTime  @default(now())
   resolvedAt          DateTime?
   resolvedBy          String?
 
-  @@index([createdAt], map: "ComplianceAlert_createdAt_idx")
-  @@index([lotId], map: "ComplianceAlert_lotId_idx")
-  @@index([severity], map: "ComplianceAlert_severity_idx")
-  @@index([slotId], map: "ComplianceAlert_slotId_idx")
-  @@index([status], map: "ComplianceAlert_status_idx")
-  @@index([type], map: "ComplianceAlert_type_idx")
+  @@index([createdAt])
+  @@index([lotId])
+  @@index([severity])
+  @@index([slotId])
+  @@index([status])
+  @@index([type])
 }
 
 model demandsnapshot {
@@ -578,13 +577,13 @@ model demandsnapshot {
   isPeakHour         Boolean             @default(false)
   timestamp          DateTime            @default(now())
   pricingRuleId      String?
-  dynamicpricingrule dynamicpricingrule? @relation(fields: [pricingRuleId], references: [id], map: "DemandSnapshot_pricingRuleId_fkey")
-  parkingsite        parkingsite         @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "DemandSnapshot_siteId_fkey")
+  dynamicpricingrule dynamicpricingrule? @relation(fields: [pricingRuleId], references: [id])
+  parkingsite        parkingsite         @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  @@index([isPeakHour], map: "DemandSnapshot_isPeakHour_idx")
-  @@index([pricingRuleId], map: "DemandSnapshot_pricingRuleId_idx")
-  @@index([siteId], map: "DemandSnapshot_siteId_idx")
-  @@index([timestamp], map: "DemandSnapshot_timestamp_idx")
+  @@index([isPeakHour])
+  @@index([pricingRuleId])
+  @@index([siteId])
+  @@index([timestamp])
 }
 
 model dynamicpricingrule {
@@ -600,10 +599,10 @@ model dynamicpricingrule {
   updatedAt           DateTime
   createdAt           DateTime         @default(now())
   demandsnapshot      demandsnapshot[]
-  parkingsite         parkingsite      @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "DynamicPricingRule_siteId_fkey")
+  parkingsite         parkingsite      @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  @@index([isDynamicEnabled], map: "DynamicPricingRule_isDynamicEnabled_idx")
-  @@index([siteId], map: "DynamicPricingRule_siteId_idx")
+  @@index([isDynamicEnabled])
+  @@index([siteId])
 }
 
 model edgedevice {
@@ -616,25 +615,25 @@ model edgedevice {
   lastHeartbeat   DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  parkingsite     parkingsite       @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "EdgeDevice_siteId_fkey")
+  parkingsite     parkingsite       @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  @@index([ipAddress], map: "EdgeDevice_ipAddress_idx")
-  @@index([siteId], map: "EdgeDevice_siteId_idx")
-  @@index([status], map: "EdgeDevice_status_idx")
+  @@index([ipAddress])
+  @@index([siteId])
+  @@index([status])
 }
 
 model edgedevicesecret {
   id                String   @id
-  deviceId          String   @unique(map: "EdgeDeviceSecret_deviceId_key")
+  deviceId          String   @unique
   secretKey         String
   previousSecretKey String?
   rotationTimestamp DateTime @default(now())
   gracePeriodEndsAt DateTime
   isActive          Boolean  @default(true)
 
-  @@index([deviceId], map: "EdgeDeviceSecret_deviceId_idx")
-  @@index([gracePeriodEndsAt], map: "EdgeDeviceSecret_gracePeriodEndsAt_idx")
-  @@index([isActive], map: "EdgeDeviceSecret_isActive_idx")
+  @@index([deviceId])
+  @@index([gracePeriodEndsAt])
+  @@index([isActive])
 }
 
 model evsession {
@@ -646,43 +645,43 @@ model evsession {
   costPerKwh        Float            @default(15)
   startTime         DateTime         @default(now())
   endTime           DateTime?
-  slot              slot             @relation(fields: [slotId], references: [id], onDelete: Cascade, map: "EVSession_slotId_fkey")
+  slot              slot             @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
-  @@index([slotId], map: "EVSession_slotId_idx")
-  @@index([startTime], map: "EVSession_startTime_idx")
-  @@index([status], map: "EVSession_status_idx")
+  @@index([slotId])
+  @@index([startTime])
+  @@index([status])
 }
 
 model fastag {
   id        String        @id
-  tagId     String        @unique(map: "Fastag_tagId_key")
+  tagId     String        @unique
   walletId  String?
-  vehicleId String        @unique(map: "Fastag_vehicleId_key")
+  vehicleId String        @unique
   userId    String
   balance   Float         @default(0)
   status    fastag_status @default(ACTIVE)
   issuedAt  DateTime      @default(now())
-  user      user          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Fastag_userId_fkey")
-  vehicle   vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade, map: "Fastag_vehicleId_fkey")
+  user      user          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle   vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "Fastag_userId_idx")
-  @@index([vehicleId], map: "Fastag_vehicleId_idx")
+  @@index([userId])
+  @@index([vehicleId])
 }
 
 model fastagaccount {
   id            String   @id
   userId        String
-  tagId         String   @unique(map: "FASTagAccount_tagId_key")
-  vehicleNumber String   @unique(map: "FASTagAccount_vehicleNumber_key")
+  tagId         String   @unique
+  vehicleNumber String   @unique
   walletBalance Float    @default(1000)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
-  user          user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "FASTagAccount_userId_fkey")
+  user          user     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([isActive], map: "FASTagAccount_isActive_idx")
-  @@index([tagId], map: "FASTagAccount_tagId_idx")
-  @@index([userId], map: "FASTagAccount_userId_idx")
-  @@index([vehicleNumber], map: "FASTagAccount_vehicleNumber_idx")
+  @@index([isActive])
+  @@index([tagId])
+  @@index([userId])
+  @@index([vehicleNumber])
 }
 
 model floor {
@@ -692,11 +691,11 @@ model floor {
   levelNumber Int
   createdAt   DateTime    @default(now())
   updatedAt   DateTime
-  parkingsite parkingsite @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "Floor_siteId_fkey")
+  parkingsite parkingsite @relation(fields: [siteId], references: [id], onDelete: Cascade)
   zone        zone[]
 
-  @@index([levelNumber], map: "Floor_levelNumber_idx")
-  @@index([siteId], map: "Floor_siteId_idx")
+  @@index([levelNumber])
+  @@index([siteId])
 }
 
 model hardwaredevice {
@@ -705,16 +704,16 @@ model hardwaredevice {
   name          String
   deviceType    hardwaredevice_deviceType
   ipAddress     String?
-  macAddress    String?                   @unique(map: "HardwareDevice_macAddress_key")
+  macAddress    String?                   @unique
   status        hardwaredevice_status     @default(ONLINE)
   lastHeartbeat DateTime                  @default(now())
   createdAt     DateTime                  @default(now())
-  parkingsite   parkingsite               @relation(fields: [siteId], references: [id], onDelete: Cascade, map: "HardwareDevice_siteId_fkey")
+  parkingsite   parkingsite               @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  @@index([deviceType], map: "HardwareDevice_deviceType_idx")
-  @@index([lastHeartbeat], map: "HardwareDevice_lastHeartbeat_idx")
-  @@index([siteId], map: "HardwareDevice_siteId_idx")
-  @@index([status], map: "HardwareDevice_status_idx")
+  @@index([deviceType])
+  @@index([lastHeartbeat])
+  @@index([siteId])
+  @@index([status])
 }
 
 model idempotencykeys {
@@ -722,17 +721,17 @@ model idempotencykeys {
   actionType     String
   idempotencyKey String
   userId         String
-  result         String   @db.LongText
+  result         String
   processedAt    DateTime @default(now())
   expiresAt      DateTime
 
-  @@unique([actionType, idempotencyKey], map: "idempotencyKeys_actionType_idempotencyKey_key")
-  @@index([expiresAt], map: "idempotencyKeys_expiresAt_idx")
-  @@index([userId], map: "idempotencyKeys_userId_idx")
+  @@unique([actionType, idempotencyKey])
+  @@index([expiresAt])
+  @@index([userId])
 }
 
 model lotconfig {
-  lotId                          String   @unique(map: "lotConfig_lotId_key")
+  lotId                          String   @unique
   advanceBookingHours            Int      @default(12)
   minBookingLeadMinutes          Int      @default(15)
   checkinGraceDivisor            Int      @default(6)
@@ -750,12 +749,12 @@ model lotconfig {
   overstayMinMaxCharge           Float    @default(200)
   turnoverBufferMinutes          Int      @default(5)
   noCompatibleSlotGraceMinutes   Int      @default(15)
-  cancellationPolicy             String   @db.LongText
+  cancellationPolicy             String
   upcomingBookingReminderMinutes Int      @default(30)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime
 
-  @@index([lotId], map: "lotConfig_lotId_idx")
+  @@index([lotId])
 }
 
 model mediafile {
@@ -767,13 +766,13 @@ model mediafile {
   fileSize            Int        @default(0)
   createdAt           DateTime   @default(now())
   isViolationEvidence Boolean    @default(false)
-  metadata            String     @db.LongText
-  parkinglot          parkinglot @relation(fields: [lotId], references: [id], map: "MediaFile_lotId_fkey")
+  metadata            String
+  parkinglot          parkinglot @relation(fields: [lotId], references: [id])
 
-  @@index([createdAt], map: "MediaFile_createdAt_idx")
-  @@index([isViolationEvidence], map: "MediaFile_isViolationEvidence_idx")
-  @@index([lotId], map: "MediaFile_lotId_idx")
-  @@index([type], map: "MediaFile_type_idx")
+  @@index([createdAt])
+  @@index([isViolationEvidence])
+  @@index([lotId])
+  @@index([type])
 }
 
 model occupancylog {
@@ -785,11 +784,11 @@ model occupancylog {
   exitTime        DateTime?
   confidenceScore Float
   createdAt       DateTime                 @default(now())
-  parkingbay      parkingbay               @relation(fields: [bayId], references: [id], onDelete: Cascade, map: "OccupancyLog_bayId_fkey")
+  parkingbay      parkingbay               @relation(fields: [bayId], references: [id], onDelete: Cascade)
 
-  @@index([bayId], map: "OccupancyLog_bayId_idx")
-  @@index([entryTime], map: "OccupancyLog_entryTime_idx")
-  @@index([plateNumber], map: "OccupancyLog_plateNumber_idx")
+  @@index([bayId])
+  @@index([entryTime])
+  @@index([plateNumber])
 }
 
 model parkingbay {
@@ -806,14 +805,14 @@ model parkingbay {
   isReserved   Boolean                @default(false)
   bookings     booking[]
   occupancylog occupancylog[]
-  zone         zone                   @relation(fields: [zoneId], references: [id], onDelete: Cascade, map: "ParkingBay_zoneId_fkey")
+  zone         zone                   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
 
-  @@unique([zoneId, bayNumber], map: "ParkingBay_zoneId_bayNumber_key")
-  @@index([bayNumber], map: "ParkingBay_bayNumber_idx")
-  @@index([bayType], map: "ParkingBay_bayType_idx")
-  @@index([isAccessible], map: "ParkingBay_isAccessible_idx")
-  @@index([status], map: "ParkingBay_status_idx")
-  @@index([zoneId], map: "ParkingBay_zoneId_idx")
+  @@unique([zoneId, bayNumber])
+  @@index([bayNumber])
+  @@index([bayType])
+  @@index([isAccessible])
+  @@index([status])
+  @@index([zoneId])
 }
 
 model parkinglevel {
@@ -828,11 +827,11 @@ model parkinglevel {
   updatedAt            DateTime
   camera               camera[]
   complianceViolations ComplianceViolation[]
-  parkinglot           parkinglot            @relation(fields: [parkingLotId], references: [id], map: "ParkingLevel_parkingLotId_fkey")
+  parkinglot           parkinglot            @relation(fields: [parkingLotId], references: [id])
   slot                 slot[]
 
-  @@index([floorNumber], map: "ParkingLevel_floorNumber_idx")
-  @@index([parkingLotId], map: "ParkingLevel_parkingLotId_idx")
+  @@index([floorNumber])
+  @@index([parkingLotId])
 }
 
 model parkingsite {
@@ -850,32 +849,32 @@ model parkingsite {
   hardwaredevice     hardwaredevice[]
   parkingLots        parkinglot[]
 
-  @@index([latitude, longitude], map: "ParkingSite_latitude_longitude_idx")
+  @@index([latitude, longitude])
 }
 
 model processedwebhookevents {
   id          String   @id
-  eventId     String   @unique(map: "processedWebhookEvents_eventId_key")
+  eventId     String   @unique
   eventType   String
   processedAt DateTime @default(now())
-  metadata    String   @db.LongText
+  metadata    String
 
-  @@index([eventId], map: "processedWebhookEvents_eventId_idx")
-  @@index([eventType], map: "processedWebhookEvents_eventType_idx")
-  @@index([processedAt], map: "processedWebhookEvents_processedAt_idx")
+  @@index([eventId])
+  @@index([eventType])
+  @@index([processedAt])
 }
 
 model session {
   id           String   @id
   userId       String
-  sessionToken String   @unique(map: "Session_sessionToken_key")
+  sessionToken String   @unique
   expires      DateTime
   createdAt    DateTime @default(now())
-  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Session_userId_fkey")
+  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([expires], map: "Session_expires_idx")
-  @@index([sessionToken], map: "Session_sessionToken_idx")
-  @@index([userId], map: "Session_userId_idx")
+  @@index([expires])
+  @@index([sessionToken])
+  @@index([userId])
 }
 
 model slot {
@@ -903,16 +902,16 @@ model slot {
   bookings             booking[]
   complianceViolations ComplianceViolation[]
   evsession            evsession[]
-  camera               camera?               @relation(fields: [cameraId], references: [id], map: "Slot_cameraId_fkey")
-  parkinglevel         parkinglevel?         @relation(fields: [levelId], references: [id], map: "Slot_levelId_fkey")
-  parkinglot           parkinglot            @relation(fields: [lotId], references: [id], map: "Slot_lotId_fkey")
+  camera               camera?               @relation(fields: [cameraId], references: [id])
+  parkinglevel         parkinglevel?         @relation(fields: [levelId], references: [id])
+  parkinglot           parkinglot            @relation(fields: [lotId], references: [id])
 
-  @@unique([lotId, slotNumber], map: "Slot_lotId_slotNumber_key")
-  @@index([cameraId], map: "Slot_cameraId_idx")
-  @@index([levelId], map: "Slot_levelId_idx")
-  @@index([lotId], map: "Slot_lotId_idx")
-  @@index([status], map: "Slot_status_idx")
-  @@index([zoneCode], map: "Slot_zoneCode_idx")
+  @@unique([lotId, slotNumber])
+  @@index([cameraId])
+  @@index([levelId])
+  @@index([lotId])
+  @@index([status])
+  @@index([zoneCode])
 }
 
 model slotallocationhistory {
@@ -924,10 +923,10 @@ model slotallocationhistory {
   releasedAt     DateTime?
   reason         String?
 
-  @@index([assignedAt], map: "SlotAllocationHistory_assignedAt_idx")
-  @@index([bookingId], map: "SlotAllocationHistory_bookingId_idx")
-  @@index([releasedAt], map: "SlotAllocationHistory_releasedAt_idx")
-  @@index([slotId], map: "SlotAllocationHistory_slotId_idx")
+  @@index([assignedAt])
+  @@index([bookingId])
+  @@index([releasedAt])
+  @@index([slotId])
 }
 
 model slotstatuslog {
@@ -939,8 +938,8 @@ model slotstatuslog {
   aiConfidence Float                   @default(100)
   createdAt    DateTime                @default(now())
 
-  @@index([createdAt], map: "SlotStatusLog_createdAt_idx")
-  @@index([slotId], map: "SlotStatusLog_slotId_idx")
+  @@index([createdAt])
+  @@index([slotId])
 }
 
 model systemalert {
@@ -953,10 +952,10 @@ model systemalert {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  @@index([createdAt], map: "SystemAlert_createdAt_idx")
-  @@index([siteId], map: "SystemAlert_siteId_idx")
-  @@index([status], map: "SystemAlert_status_idx")
-  @@index([type], map: "SystemAlert_type_idx")
+  @@index([createdAt])
+  @@index([siteId])
+  @@index([status])
+  @@index([type])
 }
 
 model zone {
@@ -967,9 +966,9 @@ model zone {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime
   parkingbay parkingbay[]
-  floor      floor        @relation(fields: [floorId], references: [id], onDelete: Cascade, map: "Zone_floorId_fkey")
+  floor      floor        @relation(fields: [floorId], references: [id], onDelete: Cascade)
 
-  @@index([floorId], map: "Zone_floorId_idx")
+  @@index([floorId])
 }
 
 enum parkingslot_type {

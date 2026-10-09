@@ -33,8 +33,10 @@ import { useRouter } from "next/navigation"
 import { loadStripe } from "@stripe/stripe-js"
 import { Elements, PaymentElement, LinkAuthenticationElement, useStripe, useElements } from "@stripe/react-stripe-js"
 
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+// Initialize Stripe - conditional to prevent crash when key is missing
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : Promise.resolve(null)
 
 type PaymentModalProps = {
     isOpen: boolean
@@ -234,51 +236,70 @@ export default function PaymentModal({
                             />
                         </div>
                     ) : clientSecret ? (
-                        <Elements
-                            stripe={stripePromise}
-                            options={{
-                                clientSecret,
-                                appearance: {
-                                    theme: 'night',
-                                    variables: {
-                                        colorPrimary: '#06b6d4',
-                                        colorBackground: '#0B0E14',
-                                        colorText: '#f8fafc',
-                                        colorDanger: '#ef4444',
-                                        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-                                        borderRadius: '12px',
-                                        spacingUnit: '4px',
-                                        gridRowSpacing: '16px'
-                                    }
-                                }
-                            }}
-                        >
-                            <CheckoutContent
-                                clientSecret={clientSecret}
-                                bookingId={bookingId}
-                                total={total}
-                                slotNumber={slotNumber}
-                                parkingName={parkingName}
-                                duration={duration}
-                                pricePerHour={pricePerHour}
-                                subtotal={subtotal}
-                                serviceFee={serviceFee}
-                                basePrice={basePrice}
-                                evPremium={evPremium}
-                                gst={gst}
-                                onSuccess={onSuccess}
-                                onClose={onClose}
-                                isMock={isMock}
-                                slotId={slotId}
-                                parkingLotId={parkingLotId}
-                                parkingAddress={parkingAddress}
-                                step={step}
-                                setStep={setStep}
-                                slotType={currentSlotType}
-                                vehiclePlate={vehiclePlate}
-                                vehicleModel={vehicleModel}
-                            />
-                        </Elements>
+                        <>
+                            {!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? (
+                                <div className="flex flex-col items-center justify-center h-[50vh] gap-6 text-center px-6">
+                                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                                        <CreditCard className="w-12 h-12 text-amber-400 mb-2" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Payment Not Configured</h3>
+                                        <p className="text-slate-400">
+                                            Stripe publishable key is missing. Please add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to your environment variables.
+                                        </p>
+                                    </div>
+                                    <Button onClick={onClose} variant="outline">
+                                        Close
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Elements
+                                    stripe={stripePromise}
+                                    options={{
+                                        clientSecret,
+                                        appearance: {
+                                            theme: 'night',
+                                            variables: {
+                                                colorPrimary: '#06b6d4',
+                                                colorBackground: '#0B0E14',
+                                                colorText: '#f8fafc',
+                                                colorDanger: '#ef4444',
+                                                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+                                                borderRadius: '12px',
+                                                spacingUnit: '4px',
+                                                gridRowSpacing: '16px'
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <CheckoutContent
+                                        clientSecret={clientSecret}
+                                        bookingId={bookingId}
+                                        total={total}
+                                        slotNumber={slotNumber}
+                                        parkingName={parkingName}
+                                        duration={duration}
+                                        pricePerHour={pricePerHour}
+                                        subtotal={subtotal}
+                                        serviceFee={serviceFee}
+                                        basePrice={basePrice}
+                                        evPremium={evPremium}
+                                        gst={gst}
+                                        onSuccess={onSuccess}
+                                        onClose={onClose}
+                                        isMock={isMock}
+                                        slotId={slotId}
+                                        parkingLotId={parkingLotId}
+                                        parkingAddress={parkingAddress}
+                                        step={step}
+                                        setStep={setStep}
+                                        slotType={currentSlotType}
+                                        vehiclePlate={vehiclePlate}
+                                        vehicleModel={vehicleModel}
+                                    />
+                                </Elements>
+                            )}
+                        </>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-[50vh] gap-6 text-center px-6">
                             <div className="relative">

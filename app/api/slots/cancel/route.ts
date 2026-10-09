@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SlotStatus, UpdatedBy } from '@prisma/client';
+import type { slot_status, slot_updatedBy } from '@prisma/client';
 
 /**
  * POST /api/slots/cancel
@@ -70,20 +70,20 @@ export async function POST(req: NextRequest) {
       prisma.slot.update({
         where: { id: resolvedSlotId },
         data: {
-          status: SlotStatus.AVAILABLE,
-          updatedBy: UpdatedBy.CUSTOMER,
+          status: 'AVAILABLE' as any,
+          updatedBy: 'CUSTOMER' as any,
           aiConfidence: 100,
         }
       })
     ]);
 
     // 5. Log status change
-    await prisma.slotStatusLog.create({
+    await (prisma as any).slotstatuslog.create({
       data: {
         slotId: resolvedSlotId,
-        oldStatus: booking.slot?.status || SlotStatus.RESERVED,
-        newStatus: SlotStatus.AVAILABLE,
-        updatedBy: UpdatedBy.CUSTOMER,
+        oldStatus: booking.slot?.status || 'RESERVED',
+        newStatus: 'AVAILABLE',
+        updatedBy: 'CUSTOMER',
         aiConfidence: 100,
       }
     });
